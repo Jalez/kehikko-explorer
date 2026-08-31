@@ -1,0 +1,185 @@
+@import 'tailwindcss';
+
+/**
+ * The palette, in shadcn's own token names, and three rules about the LAYOUT
+ * that matter more here than the colours do.
+ *
+ * ## Container queries, not viewport breakpoints
+ *
+ * This page's normal case is a container 220 to 500 pixels wide inside somebody's
+ * canvas, on a monitor two thousand pixels across. Every viewport breakpoint
+ * Tailwind ships would therefore fire — `lg:` is true, `xl:` is true — and the
+ * page would lay itself out for a screen it has three per cent of. So the root
+ * element is a container, every responsive class in this app is a `@container`
+ * class, and the only thing any of them ever measures is the container.
+ *
+ * Height is NOT done this way, and cannot be. A container query on inline size
+ * says nothing about how tall the frame is, and this module's one genuinely
+ * height-dependent decision — how many rows the virtualizer keeps — needs a
+ * number rather than a breakpoint. That is a `ResizeObserver` in `app.tsx`.
+ *
+ * ## Nothing overflows sideways, ever
+ *
+ * The standing rule of this workspace, and a file tree is the shape of thing
+ * that breaks it: every row is a path segment of unpredictable length, indented,
+ * beside an icon, inside a column narrower than a sentence. The fix here is
+ * `truncate` on the name and `min-width: 0` on every flex child — never a
+ * horizontal scrollbar, and never `overflow-x: hidden` on the body, which HIDES
+ * the failure rather than preventing it.
+ *
+ * `truncate` rather than the `overflow-wrap: anywhere` its siblings use, and the
+ * difference is the point. A quoted passage wrapped over three lines is still
+ * readable; a filename wrapped over three lines makes every row a different
+ * height, which is the one thing a virtualized list cannot have. So names clip
+ * with an ellipsis and carry the whole path in a `title`.
+ *
+ * ## Rows are one fixed height, and the number is shared
+ *
+ * `--row` is here rather than in the component because two things need to agree
+ * about it: the CSS that draws a row, and the virtualizer that decides how many
+ * exist. A disagreement between those two is not a visual bug — it is rows that
+ * overlap or gaps that appear as you scroll, and it looks like a rendering
+ * fault rather than like a wrong constant.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --radius: 0.5rem;
+
+  /*
+   * The height of one row, in pixels, as a number the virtualizer can read.
+   *
+   * 22 rather than a comfortable 32. This container is often under 300 pixels
+   * tall, which is nine rows at 32 and thirteen at 22, and the difference
+   * between nine and thirteen rows is the difference between seeing a folder's
+   * contents and scrolling to find out what is in it. It is still a 22-pixel
+   * press target, which is small; the row spans the full width to compensate,
+   * so the target is wide even where it is not tall.
+   */
+  --row: 22px;
+
+  /*
+   * Where the canvas is pointed, and the ignored grey.
+   *
+   * Two colours and no more. A file tree is a list of names and the names are
+   * the information; a palette here would be decoration competing with the one
+   * thing on screen worth reading. `pointed` is the accent that says "this is
+   * the file the rest of the canvas is showing", and it is a background rather
+   * than a text colour so that it reads at a glance across thirty rows.
+   */
+  --pointed: oklch(0.93 0.04 250);
+  --pointed-foreground: oklch(0.2 0.05 250);
+}
+
+/*
+ * Dark, twice.
+ *
+ * `.dark` is set by the wire when a host says so, and the media query is what
+ * answers before any host has spoken — a page opened directly, or a frame in its
+ * first hundred milliseconds. `.light` is the escape hatch that makes a host's
+ * explicit "light" beat a machine set to dark, which is why the media query is
+ * guarded on its absence rather than left to win.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.985 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --pointed: oklch(0.33 0.05 250);
+    --pointed-foreground: oklch(0.95 0.02 250);
+  }
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --pointed: oklch(0.33 0.05 250);
+  --pointed-foreground: oklch(0.95 0.02 250);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-pointed: var(--pointed);
+  --color-pointed-foreground: var(--pointed-foreground);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  /*
+   * The container every responsive class in this app measures.
+   *
+   * On `#root` rather than on `body`, which is a departure from the sibling
+   * modules and is deliberate. `body` here carries `overflow: hidden` and a
+   * fixed height — see the essay in `page/document.ts` — and a container that
+   * is also the overflow root is a container whose size can be affected by the
+   * thing measuring it. `#root` is the outermost element this app actually
+   * lays out, so it is the honest one to measure.
+   *
+   * Named, so a `@sm/container:` class cannot accidentally attach itself to
+   * some nested container a component introduces later.
+   */
+  #root {
+    container: container / inline-size;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
+}
