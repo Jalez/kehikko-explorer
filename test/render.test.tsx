@@ -160,7 +160,7 @@ describe('the rows a real listing produces', () => {
       ['', [dir('src'), file('readme.md')]],
       ['src', [file('src/app.tsx')]],
     ])
-    const rows = flatten({ loaded, open: new Set(['src']), loading: new Set(), showIgnored: false })
+    const rows = flatten({ loaded, open: new Set(['src']), loading: new Set() })
     render(
       <>
         {rows.map((one) => (
@@ -197,20 +197,15 @@ describe('the screens that are not a tree', () => {
     expect(screen.queryByRole('heading')).toBeNull()
   })
 
-  test('an empty folder and a folder of ignored files say different things', () => {
-    const { unmount } = render(<Empty hidden={0} onShowIgnored={() => {}} />)
+  /*
+   * One sentence now, where there used to be two. A directory whose every entry
+   * is ignored shows those entries greyed, so nothing but a genuinely empty
+   * directory reaches this screen — and an empty directory has one true thing
+   * to say.
+   */
+  test('an empty folder says so, plainly', () => {
+    render(<Empty />)
     expect(screen.getByTestId('empty').textContent).toBe('This folder is empty.')
-    unmount()
-    render(<Empty hidden={3} onShowIgnored={() => {}} />)
-    expect(screen.getByTestId('empty').textContent).toContain('3 ignored files')
-  })
-
-  /* Never a dead end: the count is said and the way to see them is on screen. */
-  test('a folder of only ignored files offers the way to see them', () => {
-    let shown = false
-    render(<Empty hidden={2} onShowIgnored={() => (shown = true)} />)
-    screen.getByText('show them').click()
-    expect(shown).toBe(true)
   })
 
   test('trouble says the server’s own sentence rather than rewording it', () => {
@@ -227,7 +222,7 @@ describe('the screens that are not a tree', () => {
     for (const [name, element] of [
       ['listening', <Listening key="l" />],
       ['no project', <NoProject key="n" unhosted={false} />],
-      ['empty', <Empty key="e" hidden={2} onShowIgnored={() => {}} />],
+      ['empty', <Empty key="e" />],
     ] as const) {
       const { container, unmount } = render(element)
       const words = (container.textContent ?? '').trim().split(/\s+/).length

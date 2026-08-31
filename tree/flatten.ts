@@ -62,7 +62,6 @@ export interface View {
   /** Directory paths whose read is in flight. */
   loading: ReadonlySet<string>
   /** Whether names git ignores are drawn at all. See `app.tsx` for why this is a toggle. */
-  showIgnored: boolean
 }
 
 /**
@@ -96,7 +95,7 @@ export function flatten(view: View): Row[] {
    * position within each sibling list is what keeps depth-first order.
    */
   const stack: { entries: readonly Entry[]; at: number; depth: number }[] = [
-    { entries: visible(view.loaded.get('') ?? [], view.showIgnored), at: 0, depth: 0 },
+    { entries: visible(view.loaded.get('') ?? []), at: 0, depth: 0 },
   ]
 
   while (stack.length) {
@@ -128,11 +127,11 @@ export function flatten(view: View): Row[] {
        * empty by this definition and that is correct — it is empty of what this
        * container is showing, and the toggle is right there.
        */
-      empty: open && children !== undefined && visible(children, view.showIgnored).length === 0,
+      empty: open && children !== undefined && visible(children).length === 0,
     })
 
     if (open && children && frame.depth + 1 < MAX_DEPTH) {
-      stack.push({ entries: visible(children, view.showIgnored), at: 0, depth: frame.depth + 1 })
+      stack.push({ entries: visible(children), at: 0, depth: frame.depth + 1 })
     }
   }
 
@@ -140,67 +139,32 @@ export function flatten(view: View): Row[] {
 }
 
 /**
- * Which of a directory's entries are drawn at all.
+ * Everything a directory holds, because hiding some of it was the wrong answer.
  *
- * ## Hidden behind a toggle rather than greyed in place, and this is a decision
+ * This used to filter ignored entries out behind a toggle, on the argument that
+ * a twelve-row container cannot afford a JavaScript project's ignored set. The
+ * owner's response to the toggle was "I don't understand the point of that at
+ * all", and on reflection neither do I: the toggle asked a person to decide, on
+ * every project, a question they had no reason to have an opinion about, and it
+ * spent a row of a 220px container asking it.
  *
- * VS Code greys ignored files and leaves them where they are, and that is right
- * for VS Code: its Explorer is a sidebar the full height of a monitor, so the
- * cost of a greyed row is a row somebody's eye skips.
+ * VS Code's answer was already sitting in this file's own comment two
+ * paragraphs up: ignored files are SHOWN, and shown greyed, because a person
+ * looking at a project wants to see what is in it and wants to be able to tell
+ * what git will not carry. `row.tsx` already draws them in
+ * `text-muted-foreground`; that greying was doing the whole job and the toggle
+ * was hiding the rows it was meant to distinguish.
  *
- * Here the container is routinely 220 pixels wide and under 300 tall, which is
- * about twelve rows. In a JavaScript project the ignored set at the root is
- * `node_modules`, `dist`, `.next`, `coverage`, `bun.lock`'s neighbours and the
- * env files — frequently more entries than the tracked ones. Greying them in
- * place would mean the first screen of an explorer is mostly things the person
- * has already decided are not their code, drawn in the colour that says "not
- * important" and taking the space of the things that are.
+ * What made the old worry real was `node_modules`, and that is answered
+ * elsewhere and better: nothing walks into a directory nobody expanded, so an
+ * ignored folder costs exactly one row until somebody asks for more. `.git` is
+ * refused outright rather than ignored, and `.kehikot` is never treated as
+ * ignored at all — this workspace's own folder, in this workspace's own
+ * explorer.
  *
- * So they are hidden by default and one press brings them back — and when they
- * come back they come back GREYED, because at that point VS Code's answer is
- * exactly right: the person asked to see them and now needs to tell them apart.
- * The toggle says how many are hidden, so nothing disappears silently; a
- * container that hid rows without saying so would be a container somebody stops
- * believing.
- *
- * The filtering is done HERE rather than on the server for one reason: the
- * toggle must not be a request. A person pressing "show ignored" twice should
- * not cost two round trips per open directory, and the `ignored` flag is one
- * boolean per entry that the answer already carries.
+ * Kept as a function rather than inlined so the argument has somewhere to live.
  */
-function visible(entries: readonly Entry[], showIgnored: boolean): Entry[] {
-  if (showIgnored) return entries as Entry[]
-  return entries.filter((one) => !one.ignored)
+function visible(entries: readonly Entry[]): Entry[] {
+  return entries as Entry[]
 }
 
-/**
- * How many rows the toggle would add, counted over what is currently expanded.
- *
- * Over the EXPANDED tree rather than the whole project, because that is the
- * only honest number this app has: it has not read the directories nobody
- * opened and will not read them to put a count on a button. "3 hidden" beside a
- * root that has been opened three levels deep means three hidden among what is
- * on screen, which is what somebody looking at the screen is asking.
- */
-export function hiddenCount(view: View): number {
-  if (view.showIgnored) return 0
-  let hidden = 0
-  const seen = new Set<string>([''])
-  const queue: string[] = ['']
-  while (queue.length) {
-    const at = queue.shift()!
-    const entries = view.loaded.get(at)
-    if (!entries) continue
-    for (const entry of entries) {
-      if (entry.ignored) {
-        hidden += 1
-        continue
-      }
-      if (entry.kind === 'dir' && view.open.has(entry.path) && !seen.has(entry.path)) {
-        seen.add(entry.path)
-        queue.push(entry.path)
-      }
-    }
-  }
-  return hidden
-}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { flatten, hiddenCount, type View } from '../tree/flatten.ts'
+import { flatten, type View } from '../tree/flatten.ts'
 import type { Entry } from '../tree/shape.ts'
 
 /**
@@ -31,7 +31,6 @@ const file = (path: string, ignored = false): Entry => ({
 const view = (parts: Partial<View> & { loaded: View['loaded'] }): View => ({
   open: new Set(),
   loading: new Set(),
-  showIgnored: false,
   ...parts,
 })
 
@@ -151,12 +150,11 @@ describe('the three states an open directory can be in', () => {
     expect(rows[0]!.open).toBe(false)
   })
 
-  /* Empty of what is being SHOWN, which is the honest reading with the toggle
-     off — and the toggle is one press away on the same screen. */
-  test('a directory holding only ignored names reads as empty until they are shown', () => {
+  /* A directory holding only ignored names is not empty, and used to read as
+     empty because they were filtered out. Nothing is filtered now. */
+  test('a directory holding only ignored names is not empty', () => {
     const only = new Map<string, Entry[]>([['', [dir('build')]], ['build', [file('build/out.js', true)]]])
-    expect(flatten(view({ loaded: only, open: new Set(['build']) }))[0]!.empty).toBe(true)
-    expect(flatten(view({ loaded: only, open: new Set(['build']), showIgnored: true }))[0]!.empty).toBe(false)
+    expect(flatten(view({ loaded: only, open: new Set(['build']) }))[0]!.empty).toBe(false)
   })
 })
 
@@ -166,12 +164,18 @@ describe('ignored names', () => {
     ['src', [file('src/app.tsx'), file('src/app.log', true)]],
   ])
 
-  test('are hidden by default, at every level', () => {
-    expect(paths(view({ loaded, open: new Set(['src']) }))).toEqual(['src', 'src/app.tsx', 'readme.md'])
-  })
-
-  test('come back with the toggle, in their original places', () => {
-    expect(paths(view({ loaded, open: new Set(['src']), showIgnored: true }))).toEqual([
+  /*
+   * They are SHOWN, at every level, in their original places.
+   *
+   * They used to be filtered out behind a toggle. The owner's response to that
+   * toggle was that they did not understand the point of it, and the answer VS
+   * Code reached long ago was already quoted in `flatten.ts`: show them, greyed,
+   * so a person can see what is in their project and tell what git will not
+   * carry. `row.tsx` does the greying; this file's job is now only to not hide
+   * anything.
+   */
+  test('are shown at every level, in their original places', () => {
+    expect(paths(view({ loaded, open: new Set(['src']) }))).toEqual([
       'node_modules',
       'src',
       'src/app.tsx',
@@ -181,45 +185,10 @@ describe('ignored names', () => {
     ])
   })
 
-  test('an ignored directory that is open still contributes no hidden children', () => {
-    const withKids = new Map(loaded).set('node_modules', [file('node_modules/react.js', true)])
-    expect(paths(view({ loaded: withKids, open: new Set(['node_modules']) }))).toEqual(['src', 'readme.md'])
-  })
-})
-
-describe('hiddenCount', () => {
-  test('is zero when everything is shown', () => {
-    const loaded = new Map<string, Entry[]>([['', [file('.env', true)]]])
-    expect(hiddenCount(view({ loaded, showIgnored: true }))).toBe(0)
-  })
-
-  test('counts what is hidden at the root', () => {
-    const loaded = new Map<string, Entry[]>([['', [file('.env', true), dir('dist', true), file('a.ts')]]])
-    expect(hiddenCount(view({ loaded }))).toBe(2)
-  })
-
-  /*
-   * Counted over what is EXPANDED, not over the project, because the project is
-   * not something this app has read. "3 hidden" beside a tree opened two levels
-   * means three among what is on screen, which is the question somebody looking
-   * at the screen is asking.
-   */
-  test('counts inside open directories and not inside closed ones', () => {
-    const loaded = new Map<string, Entry[]>([
-      ['', [dir('src'), dir('docs')]],
-      ['src', [file('src/a.log', true), file('src/a.ts')]],
-      ['docs', [file('docs/b.log', true)]],
-    ])
-    expect(hiddenCount(view({ loaded, open: new Set(['src']) }))).toBe(1)
-    expect(hiddenCount(view({ loaded, open: new Set(['src', 'docs']) }))).toBe(2)
-  })
-
-  test('does not descend into an ignored directory it is counting', () => {
-    const loaded = new Map<string, Entry[]>([
-      ['', [dir('node_modules', true)]],
-      ['node_modules', [file('node_modules/a.js', true), file('node_modules/b.js', true)]],
-    ])
-    expect(hiddenCount(view({ loaded, open: new Set(['node_modules']) }))).toBe(1)
+  /* The cost that made hiding them tempting is answered by laziness rather than
+     by filtering: an unexpanded ignored directory is one row, whatever it holds. */
+  test('an unexpanded ignored directory costs one row', () => {
+    expect(paths(view({ loaded }))).toEqual(['node_modules', 'src', '.env', 'readme.md'])
   })
 })
 

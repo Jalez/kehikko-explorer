@@ -58,25 +58,24 @@ export function NoProject({ unhosted }: { unhosted: boolean }) {
 }
 
 /**
- * The root was read and there is nothing in it that this container is showing.
+ * The root was read and there is nothing in it.
  *
- * Two quite different situations reach this, and the sentence has to work for
- * both: a genuinely empty directory, and a directory whose every entry is
- * ignored. The second is common — a build output folder somebody pointed the
- * canvas at — and it is why the toggle is mentioned rather than assumed. Naming
- * the number is what stops the screen from being a dead end.
+ * One situation now, where there used to be two. This screen used to have to
+ * work for a genuinely empty directory AND for one whose every entry was
+ * ignored, and it named the count and offered a press because the second was
+ * common — a build output folder somebody pointed the canvas at — and would
+ * otherwise have been a dead end.
+ *
+ * Ignored entries are drawn now, greyed rather than hidden, so a directory that
+ * holds only ignored files is a directory that shows its files. Nothing reaches
+ * here but an empty one, and an empty directory has one true sentence.
  */
-export function Empty({ hidden, onShowIgnored }: { hidden: number; onShowIgnored: () => void }) {
+export function Empty() {
   return (
     <div className="space-y-2 p-3">
       <p data-testid="empty" className="text-xs text-muted-foreground">
-        {hidden ? `Nothing here but ${hidden} ignored file${hidden === 1 ? '' : 's'}.` : 'This folder is empty.'}
+        This folder is empty.
       </p>
-      {hidden ? (
-        <button type="button" className="text-xs underline underline-offset-2" onClick={onShowIgnored}>
-          show them
-        </button>
-      ) : null}
     </div>
   )
 }

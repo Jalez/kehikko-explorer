@@ -2,7 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ID } from '../manifest.ts'
-import { flatten, hiddenCount } from '../tree/flatten.ts'
+import { flatten } from '../tree/flatten.ts'
 import { absoluteOf, rootOf } from '../tree/paths.ts'
 
 import type { Copied } from '@/lib/copy.ts'
@@ -76,7 +76,6 @@ const CHROME = 28
  * queries, as everywhere else in this workspace.
  */
 export function App() {
-  const [showIgnored, setShowIgnored] = useState(false)
   /**
    * The one context menu, and which row it was opened on.
    *
@@ -112,16 +111,8 @@ export function App() {
   const { where, projectPath, passage, resize, point } = useRoadmap(ID, onGoto)
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
 
-  const view = useMemo(() => ({ loaded, open, loading, showIgnored }), [loaded, open, loading, showIgnored])
+  const view = useMemo(() => ({ loaded, open, loading }), [loaded, open, loading])
   const rows = useMemo(() => flatten(view), [view])
-  const hidden = useMemo(() => hiddenCount(view), [view])
-  /*
-   * How many names are missing from what is on screen, summed over the
-   * directories that are actually open.
-   *
-   * Summed rather than named per directory: on a container this narrow, one
-   * short sentence is what fits, and the number is the part somebody acts on.
-   */
   const truncated = useMemo(() => {
     let total = 0
     for (const [path, count] of cut) {
@@ -305,7 +296,7 @@ export function App() {
      `readdir` and it is done in single-digit milliseconds; anything drawn here
      is a flash the person reads as a fault. */
   if (!readRoot) return <div className="p-3" data-testid="reading" />
-  if (!rows.length) return <Empty hidden={hidden} onShowIgnored={() => setShowIgnored(true)} />
+  if (!rows.length) return <Empty />
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -392,10 +383,6 @@ export function App() {
       ) : null}
 
       <div className="flex min-w-0 shrink-0 items-center gap-1 border-t px-1 py-0.5">
-        <Button size="container" variant="ghost" data-testid="ignored" onClick={() => setShowIgnored((was) => !was)}>
-          {showIgnored ? 'hide ignored' : hidden ? `show ${hidden} ignored` : 'show ignored'}
-        </Button>
-        <span className="flex-1" />
         <Button size="container" variant="ghost" data-testid="refresh" onClick={refresh}>
           refresh
         </Button>
