@@ -172,6 +172,29 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     about: 'The working tree of a project on disk: directories, files, and what git ignores. Names only, never contents.',
   },
   extensions: { emits: [], consumes: [] },
+  /**
+   * This module is on both halves of the same relationship, which is worth
+   * saying out loud because it is the case the registry's badges exist for.
+   *
+   * It PROVIDES a passage: pressing a file asks the canvas to point at it, which
+   * is `passage:set` in `declares.uses` below.
+   *
+   * And it REACTS to one: a passage arriving from anywhere else — a note being
+   * pressed, a question in the learning module, a reader selecting a sentence —
+   * marks the corresponding row here, so the tree shows where the rest of the
+   * canvas is standing. That half was already built and was invisible: nothing
+   * in the manifest said it, so a person reading the module list saw a provider
+   * and no consumer, and the passage graph looked one-directional when it never
+   * was.
+   *
+   * `reacts` is a claim this module makes about ITSELF, for somebody browsing
+   * the registry. It is not a permission and must never become one: the host
+   * broadcasts the context to every framed module regardless, and a module that
+   * forgot a word here would go on working exactly as before. See the essay on
+   * `reacts` in the protocol's `manifest.ts`, which refuses that temptation at
+   * length and has a test whose only job is to fail if anybody yields to it.
+   */
+  reacts: ['passage'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['passage:set'],
