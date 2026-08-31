@@ -221,3 +221,36 @@ describe('.git', () => {
     expect(NEVER.has('.github')).toBe(false)
   })
 })
+
+describe('the workspace own folder', () => {
+  const ignoresIt: Level[] = [{ at: '', rules: parseIgnore('.kehikot/') }]
+
+  /*
+   * Every project Kehikot touches gitignores `.kehikot`, and should: it is a
+   * person's working state, not part of the work. That left the one folder this
+   * workspace writes hidden inside this workspace's own explorer, behind a
+   * toggle named for somebody else's idea of it -- reported by the owner as
+   * "Explorer doesn't show a .kehikot folder in thesis_latex".
+   */
+  test('is shown even where the project ignores it', () => {
+    expect(verdict(ignoresIt, '.kehikot', true)).toBe(false)
+  })
+
+  test('and so is what is inside it', () => {
+    expect(verdict(ignoresIt, '.kehikot/notes/notes.json', false)).toBe(false)
+  })
+
+  /* The rule itself stays correct -- nothing else the project ignores is
+     surfaced by this exception. */
+  test('nothing else it ignores is surfaced', () => {
+    const rules: Level[] = [{ at: '', rules: parseIgnore('.kehikot/\nbuild/') }]
+    expect(verdict(rules, 'build', true)).toBe(true)
+  })
+
+  /* Scoped to the root: a `.kehikot` deep inside a dependency is not this
+     workspace's and has no claim on being surfaced. */
+  test('one nested somewhere else is not ours', () => {
+    const rules: Level[] = [{ at: '', rules: parseIgnore('vendor/') }]
+    expect(verdict(rules, 'vendor/thing/.kehikot', true)).toBe(true)
+  })
+})

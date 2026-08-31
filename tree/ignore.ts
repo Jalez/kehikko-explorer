@@ -247,7 +247,28 @@ export interface Level {
   rules: Rule[]
 }
 
+/**
+ * The one name that is never treated as ignored, whatever the rules say.
+ *
+ * `.kehikot` is where every module on this canvas keeps that project's data —
+ * a folder per module, written by this workspace, inside the project it is
+ * about. It is gitignored on purpose and by default, because it is a person's
+ * working state and not part of the work; the alternative was polluting the
+ * history of every project Kehikot is ever opened on.
+ *
+ * Which left the one folder this workspace itself writes hidden inside this
+ * workspace's own file explorer, behind a toggle labelled with somebody else's
+ * word for it. That is not the ignore rule being wrong — the rule is correct
+ * and should stay — it is this app being the one reader for whom that folder is
+ * not incidental.
+ *
+ * Scoped to the root, deliberately. A `.kehikot` nested somewhere deep in a
+ * dependency is not this workspace's and has no claim on being surfaced.
+ */
+const OURS = '.kehikot'
+
 export function verdict(chain: readonly Level[], relative: string, isDir: boolean): boolean {
+  if (relative === OURS || relative.startsWith(`${OURS}/`)) return false
   for (let i = chain.length - 1; i >= 0; i -= 1) {
     const level = chain[i]!
     if (level.at && !relative.startsWith(`${level.at}/`)) continue
