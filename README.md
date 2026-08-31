@@ -10,7 +10,7 @@ pointing.
 ```
 ./run.sh                      # http://127.0.0.1:7970
 bun run register              # tell a host on this machine where it answers
-bun test                      # 157 tests, no browser needed for any of them
+bun test                      # 212 tests, no browser needed for any of them
 bun run typecheck
 ```
 
@@ -49,6 +49,31 @@ directory should not have to find out by looking for a feature that is missing.
   claim rather than an intention.
 - **It never walks `node_modules` eagerly**, or anything else. One `readdir` per
   press, forever.
+
+## The context menu
+
+Right-click a row — or press Shift+F10, or the Menu key, wherever focus is on
+one — and there are two items:
+
+- **Copy path**, the absolute path.
+- **Copy relative path**, relative to the project root the host named, which is
+  what the tree is rooted at and what VS Code means by the same words.
+
+That is the whole menu. Everything else VS Code puts in this menu is either a
+write — see above, there is no write half — or something this app has no way to
+do: nothing in a framed page can ask an operating system to reveal a file in a
+Finder window. Pressing a row still points the canvas and opening the menu still
+does not, which `dev/copying.mjs` counts alongside everything else.
+
+The clipboard is the part with a trap in it. `navigator.clipboard.writeText` has
+a default permissions-policy allowlist of `self`, and every module here is on
+its own port and therefore cross-origin to its host — so without
+`allow="clipboard-write"` on the frame the promise rejects, silently, and the
+person finds out at the paste. The host sends the attribute now. This app also
+falls back to a `<textarea>` and `document.execCommand('copy')`, which is not
+gated by that policy, and says so on screen when neither worked. `bun test`
+covers the branches; `node dev/copying.mjs` frames the real page with and
+without the attribute and reads the real clipboard back.
 
 ## How it stays fast
 
@@ -175,13 +200,18 @@ tree/confine.ts    the fence. the only file that decides what may be looked at
 tree/ignore.ts     what git would ignore, as a pure function over a string
 tree/read.ts       one directory, read once
 tree/flatten.ts    the visible-node model. pure, and tested hardest
+tree/paths.ts      a path said absolutely and relatively, in one place
 tree/shape.ts      what an entry is, and every bound on a request
 
 src/app.tsx        the page: the virtualizer, and the one press that points
 src/use-tree.ts    what is open, what is loaded, and when it is re-read
+src/lib/copy.ts    the clipboard, both ways, and what to do when neither works
 src/view/row.tsx   one line
+src/view/menu.tsx  the right-click menu: two copies and nothing else
+src/view/place.ts  where a menu goes so all of it is inside a 220px frame
 src/wire/          the host, as one React value
 
 dev/measure.mjs    the numbers above, reproduced
 dev/pointing.mjs   the bound on passage.set, watched from where a host sits
+dev/copying.mjs    the clipboard, read back, framed and unframed
 ```

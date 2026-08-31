@@ -3,8 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ID } from '../manifest.ts'
 import { flatten, hiddenCount } from '../tree/flatten.ts'
+import { absoluteOf, rootOf } from '../tree/paths.ts'
 
+import type { Copied } from '@/lib/copy.ts'
 import { Button } from '@/components/ui/button.tsx'
+import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
 import { Empty, Listening, NoProject, Trouble } from '@/view/screens.tsx'
 import { useTree } from '@/use-tree.ts'
@@ -74,6 +77,25 @@ const CHROME = 28
  */
 export function App() {
   const [showIgnored, setShowIgnored] = useState(false)
+  /**
+   * The one context menu, and which row it was opened on.
+   *
+   * At the page level rather than inside a row, because the rows are
+   * virtualized: a menu owned by a row would be unmounted the instant that row
+   * scrolled out of the DOM, which is not a hypothetical when a menu opens near
+   * the bottom edge of a container this short. Null is closed.
+   */
+  const [menu, setMenu] = useState<MenuAt | null>(null)
+  /**
+   * A sentence shown only when a copy did NOT happen.
+   *
+   * Nothing is said when it worked, and that asymmetry is the design. A toast
+   * on every success in a 220-pixel container is a line of chrome that appears
+   * twice a minute and says what the person already knows; a copy that silently
+   * does nothing is the exact complaint this menu was built to answer, and it
+   * is the only outcome they cannot see for themselves.
+   */
+  const [notice, setNotice] = useState<string | null>(null)
 
   const onGoto = useCallback<GotoHandler>((message, answer) => {
     /* A `goto` may name an epic, a step, or a reference. This container draws a
@@ -122,7 +144,12 @@ export function App() {
    */
   const pointedAt = useMemo(() => {
     if (!passage || !projectPath) return null
-    const root = projectPath.endsWith('/') ? projectPath : `${projectPath}/`
+    /* `rootOf` rather than a local trailing-slash rule, because `absoluteOf`
+       below builds the other direction with the same function — and the one
+       failure worth designing out here is the two of them disagreeing, which
+       shows up as a file this app itself just pointed at refusing to mark
+       itself. See `tree/paths.ts`. */
+    const root = `${rootOf(projectPath)}/`
     return passage.path.startsWith(root) ? passage.path.slice(root.length) : null
   }, [passage, projectPath])
 
@@ -145,11 +172,55 @@ export function App() {
        * and the row disables itself rather than being silently inert.
        */
       point: where === 'hosted' && projectPath
-        ? (path: string) => point({ path: `${projectPath.replace(/\/$/, '')}/${path}`, page: null, from: null, to: null, quoted: '' })
+        ? (path: string) => point({ path: absoluteOf(projectPath, path), page: null, from: null, to: null, quoted: '' })
         : null,
+      /*
+       * Opening the menu is a state change here and NOTHING else.
+       *
+       * Not a selection, and emphatically not a `passage.set`: the bound in
+       * `manifest.ts` is that this app points when a person presses a row, and
+       * a right-click is not a press. It is worth saying at this call site
+       * because this is where somebody would "helpfully" add it.
+       *
+       * Offered whether or not there is a canvas to point, unlike `point`
+       * above — a path is a true thing about the disk regardless of who is
+       * framing this page, and the clipboard is not the host's to grant.
+       */
+      menu: (path, x, y, from) => setMenu({ path, x, y, from }),
     }),
     [toggle, point, where, projectPath],
   )
+
+  /**
+   * What to say about a copy, which is nothing unless it failed.
+   *
+   * `clipboard` and `textarea` are both successes and are deliberately not
+   * distinguished on screen: which mechanism a browser allowed is this
+   * program's business, and a person who wanted a path now has one. It is
+   * distinguished in the RETURN VALUE so a probe can assert the fallback path
+   * without inferring it from silence — see `lib/copy.ts` and `dev/copying.mjs`.
+   */
+  const onCopied = useCallback((result: Copied) => {
+    setNotice(result === 'failed' ? 'Could not copy the path.' : null)
+  }, [])
+
+  /*
+   * The notice clears itself after a few seconds.
+   *
+   * A failure that stays on screen forever becomes part of the furniture and
+   * stops being read, and there is nothing to act on once it has been seen —
+   * the remedy is to try again, which puts it back. Keyed on the sentence so a
+   * second failure restarts the clock rather than inheriting the first one's.
+   */
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 5000)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  /* A new project is a new tree, and a menu still open over it would be
+     offering the path of a file in the project nobody is looking at any more. */
+  useEffect(() => setMenu(null), [projectPath])
 
   /*
    * The scroll container's height, measured.
@@ -296,6 +367,24 @@ export function App() {
        * would be a request for a fifteen-megabyte listing to draw twelve rows
        * from. A directory that large is one to search rather than to browse.
        */}
+      {/*
+       * Said only when a copy failed, and said in the same strip the truncation
+       * count uses so that nothing on this page ever moves the rows.
+       *
+       * `role="status"` because a person using a screen reader gets no other
+       * signal at all: the visible failure of a copy is that a paste later
+       * produces the wrong thing, which is far too late to be told.
+       */}
+      {notice ? (
+        <p
+          data-testid="notice"
+          role="status"
+          className="min-w-0 shrink-0 border-t px-1.5 py-0.5 text-[0.65rem] text-red-600 dark:text-red-400"
+        >
+          {notice}
+        </p>
+      ) : null}
+
       {truncated ? (
         <p data-testid="truncated" className="min-w-0 shrink-0 border-t px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
           {truncated.toLocaleString()} more here than this shows.
@@ -311,6 +400,26 @@ export function App() {
           refresh
         </Button>
       </div>
+
+      {/*
+       * The menu, drawn last and positioned against the frame's viewport rather
+       * than against anything on this page.
+       *
+       * Last in the DOM so it paints over the rows without needing a stacking
+       * context of its own, and outside the scroller so that scrolling cannot
+       * clip it — a menu opened on the last visible row is taller than the room
+       * left below it, and inside an `overflow-y: auto` box it would be cut in
+       * half. Where it actually lands is `view/place.ts`, which is a pure
+       * function with the 220-pixel cases in its tests.
+       *
+       * Only ever rendered with a `projectPath`, because an absolute path
+       * without a root is not a path this app could spell honestly. The screens
+       * above return before here when there is none, so this is a guard for the
+       * type rather than a state anybody reaches.
+       */}
+      {menu && projectPath ? (
+        <RowMenu at={menu} projectPath={projectPath} onCopied={onCopied} onClose={() => setMenu(null)} />
+      ) : null}
     </div>
   )
 }

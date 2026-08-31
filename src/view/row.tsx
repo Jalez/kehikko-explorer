@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react'
+import { type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, useRef } from 'react'
 
 import type { Row } from '../../tree/flatten.ts'
 
@@ -48,6 +49,19 @@ export interface RowActions {
   toggle: (path: string) => void
   /** Point the canvas at a file. Null when nothing is framing this page. */
   point: ((path: string) => void) | null
+  /**
+   * Ask for the context menu on this row, at this point in the frame.
+   *
+   * The ROW does not own the menu, and that is deliberate: the list is
+   * virtualized, so a menu owned by a row would be unmounted mid-interaction
+   * the moment the row it belongs to scrolled out of view — which is exactly
+   * what a person does when they open a menu near the bottom edge and the
+   * container nudges itself. One menu lives at the page level and rows ask for
+   * it. See `view/menu.tsx`.
+   *
+   * Optional so that a test rendering a bare row does not have to supply one.
+   */
+  menu?: (path: string, x: number, y: number, from: HTMLElement | null) => void
 }
 
 export function TreeRow({
@@ -62,6 +76,78 @@ export function TreeRow({
 }) {
   const { entry, depth, open, loading, empty } = row
   const isDir = entry.kind === 'dir'
+
+  /*
+   * Two refs, and each one answers a question the menu asks.
+   *
+   * `line` is the row's box, which is where a menu opened FROM THE KEYBOARD
+   * has to be anchored: a keyboard has no pointer and no coordinates, so the
+   * only honest anchor is the row itself.
+   *
+   * `name` is what focus goes back to when the menu closes. The name button is
+   * the row's main target and the thing a keyboard user was on when they
+   * pressed Shift+F10, so returning them there returns them to where they were
+   * rather than to the top of the document.
+   */
+  const line = useRef<HTMLDivElement | null>(null)
+  const name = useRef<HTMLButtonElement | null>(null)
+
+  /**
+   * Open the menu, from a pointer or from a key.
+   *
+   * `point` is null when a keyboard asked, and then the anchor is the row's own
+   * bottom-left corner — a menu that drops from under the row, the way a menu
+   * button's menu does. It is not a fallback for a missing coordinate; it is
+   * the correct anchor for an interaction that never had one.
+   */
+  const raise = (from: HTMLElement | null, point: { x: number; y: number } | null) => {
+    if (!actions.menu) return
+    const box = line.current?.getBoundingClientRect()
+    const at = point ?? { x: box ? box.left + 8 : 0, y: box ? box.bottom : 0 }
+    actions.menu(entry.path, at.x, at.y, from)
+  }
+
+  /**
+   * A right-click, and the reason it does NOT point the canvas.
+   *
+   * `preventDefault` takes the browser's own menu away, which is the trade this
+   * whole feature makes: the native menu on a `<button>` offers nothing useful
+   * about a file that is not on disk here, and the two items that ARE useful
+   * are the ones being added. Nothing else happens — no selection, no
+   * `passage.set`. Opening a menu is not pressing a row, and a right-click that
+   * moved every container on the canvas would make "copy the path of some other
+   * file" impossible to do without losing your place.
+   *
+   * The zero-coordinate check is not paranoia. Several browsers dispatch
+   * `contextmenu` at (0, 0) when it came from the Menu key rather than from a
+   * pointer, and a menu pinned to the top-left corner of the frame while the
+   * row is halfway down is a menu that appears to belong to nothing.
+   */
+  const onContextMenu = (event: ReactMouseEvent) => {
+    if (!actions.menu) return
+    event.preventDefault()
+    const fromPointer = event.clientX !== 0 || event.clientY !== 0
+    raise(name.current, fromPointer ? { x: event.clientX, y: event.clientY } : null)
+  }
+
+  /**
+   * The keyboard's way in, which is not optional.
+   *
+   * A menu reachable only by right-click is a menu half the people using this
+   * cannot open — and on macOS, which is where this workspace runs, neither
+   * Shift+F10 nor a Menu key produces a `contextmenu` event on its own, so the
+   * handler above would never fire. Both conventional openers are therefore
+   * handled explicitly rather than left to the browser.
+   *
+   * On the row's container rather than on each button, so it works wherever
+   * focus is within the row — the chevron included.
+   */
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    if (!actions.menu) return
+    if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return
+    event.preventDefault()
+    raise(event.target instanceof HTMLElement ? event.target : name.current, null)
+  }
 
   /*
    * Indentation is a `paddingLeft` rather than nested elements, because the
@@ -80,6 +166,9 @@ export function TreeRow({
 
   return (
     <div
+      ref={line}
+      onContextMenu={onContextMenu}
+      onKeyDown={onKeyDown}
       className={cn(
         'flex w-full min-w-0 select-none items-center rounded-sm pr-1 text-left text-xs',
         'hover:bg-accent hover:text-accent-foreground',
@@ -127,6 +216,7 @@ export function TreeRow({
        */}
       <button
         type="button"
+        ref={name}
         title={entry.path}
         data-testid="row"
         data-path={entry.path}
