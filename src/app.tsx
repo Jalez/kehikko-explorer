@@ -111,6 +111,30 @@ export function App() {
   const { where, projectPath, passage, resize, point } = useRoadmap(ID, onGoto)
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
 
+  /*
+   * Nothing is offered to `roadmap.filters`, and that is a decision this file
+   * has already made once under another name.
+   *
+   * The protocol lets a module say what it can be narrowed by so the host can
+   * draw one control in the container header. The obvious candidate here is the
+   * `show N ignored` toggle — and it was deleted, on purpose, for reasons that
+   * are the same reasons it should not come back as a header control: it asked
+   * a person to decide, per project, a question they had no reason to have an
+   * opinion about. Ignored files are shown, greyed, which is VS Code's answer
+   * and the right one. See the judgement calls in the README.
+   *
+   * Nothing else here hides a row. `cut` is a cap, not a filter — one
+   * directory's answer is capped at `MAX_ENTRIES` and the page says so in a
+   * line — and a limit nobody chose is not something to offer a press for.
+   * Expanding and collapsing a directory hides rows and is also not a filter:
+   * it is where the reader is standing in the tree, it is undone by the same
+   * gesture that did it, and a header control that folded somebody's tree would
+   * be moving their place rather than narrowing their view.
+   *
+   * So this module sends no offer at all. An empty offer is a real message —
+   * "the control I gave you is withdrawn" — and this page has never given one.
+   */
+
   const view = useMemo(() => ({ loaded, open, loading }), [loaded, open, loading])
   const rows = useMemo(() => flatten(view), [view])
   const truncated = useMemo(() => {

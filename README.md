@@ -113,16 +113,27 @@ so in a line rather than truncating silently.
 
 ## Judgement calls
 
-**Ignored files are hidden behind a toggle, not greyed in place.** VS Code greys
-them, which is right for a sidebar the height of a monitor. This container is
-routinely under 300 pixels tall, about twelve rows, and in a JavaScript project
-the ignored set at the root is often larger than the tracked one. Greying them
-would mean the first screen of an explorer is mostly things the person has
-already decided are not their code. So they are hidden, the toggle says how many
-(`show 6 ignored`), and when they come back they come back greyed — because at
-that point VS Code's answer is exactly right.
+**Ignored files are shown, greyed in place, and there is no toggle.** VS Code
+greys them and that is the whole answer: somebody looking at a project wants to
+see what is in it, and wants to be able to tell what git will not carry.
 
-**`.git` is not behind that toggle. It is not in the answer at all.** git does
+There used to be a toggle that hid them and offered a press with a count
+(`show 6 ignored`). It was removed, and the reasoning is worth keeping because
+it is the reason this module has no filter to hand the host: the toggle asked a
+person to decide, per project, a question they had no reason to have an opinion
+about, and spent a row of a 220-pixel container asking it. The worry behind it
+was a JavaScript project's ignored set being larger than its tracked one, and
+that is answered by laziness rather than by filtering — nothing walks into a
+directory nobody expanded, so `node_modules` is one greyed row until somebody
+asks for more.
+
+So when the protocol grew `roadmap.filters` — a module offers what it can be
+narrowed by, the host draws one control in the container header — this module
+had nothing to offer, and offers nothing. Not an empty offer, which would mean
+"withdraw the control I sent you"; nothing at all. A tree that hides no rows has
+no count to keep honest and no press to hand over.
+
+**`.git` is not greyed. It is not in the answer at all.** git does
 not ignore `.git`; it simply is not part of the working tree. It also holds
 every object in the repository's history and, in `config`, credentials on some
 machines. It is refused as a destination and not merely filtered out of
