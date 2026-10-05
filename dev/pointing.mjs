@@ -11,7 +11,7 @@
  * is to sit where the host sits and count what arrives.
  *
  * So this page IS a host: it frames `/app`, greets it, records every
- * `roadmap.request` the frame sends, and then does the things that must NOT
+ * `kehikot.request` the frame sends, and then does the things that must NOT
  * produce one before doing the one thing that must.
  *
  * ## What it establishes
@@ -36,7 +36,7 @@ const PROJECT = process.argv[2] ?? '/Users/jaakkorajala/Projects/kehikko-explore
  *
  * ## It greets on `load`, and that order is not interchangeable
  *
- * The obvious version greets when `roadmap.ready` arrives, and it waits
+ * The obvious version greets when `kehikot.ready` arrives, and it waits
  * forever: the client sends `ready` in ANSWER to a greeting, naming the
  * protocol it was greeted with, so a host waiting for one is two programs each
  * waiting for the other. A real host greets on the frame's `load` event, which
@@ -63,7 +63,7 @@ const HOST = `<!doctype html>
   })
   frame.addEventListener('load', () => {
     frame.contentWindow.postMessage({
-      type: 'roadmap.hello',
+      type: 'kehikot.hello',
       protocol: 2,
       session: 'pointing',
       state: null,
@@ -111,7 +111,7 @@ const frame = page.frameLocator('#frame')
 await frame.locator('[data-testid="row"]').first().waitFor({ timeout: 10_000 })
 
 const passages = () =>
-  page.evaluate(() => window.__sent.filter((m) => m.type === 'roadmap.request' && m.method === 'passage.set'))
+  page.evaluate(() => window.__sent.filter((m) => m.type === 'kehikot.request' && m.method === 'passage.set'))
 
 const afterLoad = await passages()
 
@@ -145,10 +145,10 @@ const afterFilePress = await passages()
  */
 await page.evaluate((project) => {
   /* Flat, not nested under `context`. The greeting wraps its context in a
-     field and `roadmap.context` IS the context with two envelope fields added,
+     field and `kehikot.context` IS the context with two envelope fields added,
      which is a difference that costs an afternoon if you assume symmetry. */
   document.getElementById('frame').contentWindow.postMessage({
-    type: 'roadmap.context',
+    type: 'kehikot.context',
     protocol: 2,
     epic: null,
     project: 'measured',

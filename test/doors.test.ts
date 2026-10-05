@@ -56,7 +56,7 @@ describe('/healthz', () => {
     const body = reply?.body as Record<string, unknown>
     expect(reply?.status).toBe(200)
     expect(body.ok).toBe(true)
-    expect(body.id).toBe('roadmap.explorer')
+    expect(body.id).toBe('kehikot.explorer')
     expect(body.writes).toContain('none')
   })
 
@@ -154,7 +154,7 @@ describe('/mcp', () => {
 
   test('initialize names this server and says what it will not do', () => {
     const body = rpc('initialize')?.body as { result: { serverInfo: { name: string }; instructions: string } }
-    expect(body.result.serverInfo.name).toBe('roadmap.explorer')
+    expect(body.result.serverInfo.name).toBe('kehikot.explorer')
     expect(body.result.instructions).toContain('no file contents')
   })
 

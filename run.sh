@@ -51,9 +51,25 @@ cd "$(dirname "$0")"
 : "${EXPLORER_ROOTS:=}"
 export EXPLORER_ROOTS
 
-if [ ! -d node_modules ]; then
+# Install when nothing is installed, AND whenever bun.lock or package.json is
+# newer than the last install here — the same rule as the host's own run.sh. A
+# pull that moves the protocol pin leaves the old package in node_modules, and
+# a page that imports a name the old package does not have draws nothing.
+# `--frozen-lockfile`, so a start installs exactly what bun.lock says and never
+# rewrites it behind somebody's back. The stamp is written only after an
+# install that succeeded.
+INSTALLED=node_modules/.kehikot-installed
+VITE_FORCE=
+if [ ! -d node_modules ] || [ ! -f "$INSTALLED" ] || [ bun.lock -nt "$INSTALLED" ] || [ package.json -nt "$INSTALLED" ]; then
   echo "installing…" >&2
-  bun install >&2
+  if [ -f bun.lock ]; then
+    bun install --frozen-lockfile >&2 || { echo "bun install --frozen-lockfile failed: bun.lock does not match package.json. Run \`bun install\` and commit bun.lock." >&2; exit 1; }
+  else
+    bun install >&2
+  fi
+  touch "$INSTALLED"
+  # Rebuild Vite's pre-bundle rather than trust one made from the old packages.
+  VITE_FORCE=--force
 fi
 
-exec bunx vite --host 127.0.0.1 --port "${PORT:-7970}" --strictPort
+exec bunx vite --host 127.0.0.1 --port "${PORT:-7970}" --strictPort $VITE_FORCE

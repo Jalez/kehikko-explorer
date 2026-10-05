@@ -16,7 +16,7 @@ import { TreeRow, type RowActions } from '../src/view/row.tsx'
  *
  * The one thing asserted more than once is that opening this menu does not
  * point the canvas. That bound is argued in `manifest.ts`, restated in
- * `wire/use-roadmap.ts`, and it is exactly the kind of thing a later
+ * `wire/use-kehikot.ts`, and it is exactly the kind of thing a later
  * convenience — "select the row you right-clicked, like a file manager does" —
  * would break without anybody noticing, because the wrong behaviour looks
  * perfectly reasonable on screen.
