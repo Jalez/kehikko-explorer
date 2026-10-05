@@ -70,7 +70,7 @@ const hostPage = (allow, size) => `<!doctype html>
   })
   frame.addEventListener('load', () => {
     frame.contentWindow.postMessage({
-      type: 'roadmap.hello', protocol: 2, session: 'copying', state: null,
+      type: 'kehikot.hello', protocol: 2, session: 'copying', state: null,
       context: {
         epic: null, project: 'measured', projectPath: ${JSON.stringify(PROJECT)},
         theme: 'light', passage: null, prompt: null,
@@ -151,7 +151,7 @@ async function run({ name, allow, deleteClipboardApi = false, size = { width: 90
 
   const onClipboard = await page.evaluate(() => navigator.clipboard.readText())
   const passages = await page.evaluate(() =>
-    window.__sent.filter((m) => m.type === 'roadmap.request' && m.method === 'passage.set').length)
+    window.__sent.filter((m) => m.type === 'kehikot.request' && m.method === 'passage.set').length)
   const menuGone = (await frame.locator('[data-testid="row-menu"]').count()) === 0
 
   await context.close()

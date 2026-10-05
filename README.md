@@ -127,7 +127,7 @@ that is answered by laziness rather than by filtering — nothing walks into a
 directory nobody expanded, so `node_modules` is one greyed row until somebody
 asks for more.
 
-So when the protocol grew `roadmap.filters` — a module offers what it can be
+So when the protocol grew `kehikot.filters` — a module offers what it can be
 narrowed by, the host draws one control in the container header — this module
 had nothing to offer, and offers nothing. Not an empty offer, which would mean
 "withdraw the control I sent you"; nothing at all. A tree that hides no rows has
@@ -205,7 +205,7 @@ manifest.ts        what a host reads, and where every bound is written down
 doors.ts           /api/tree, /mcp, /healthz — deciding, without a socket
 vite.config.ts     the one server: page, manifest, api, mcp, one origin
 run.sh             ./run.sh, no arguments, $PORT from the environment
-register.ts        write ~/.roadmap/modules/roadmap.explorer.json
+register.ts        write the registration (kehikot.explorer.json in the Kehikot modules directory)
 
 tree/confine.ts    the fence. the only file that decides what may be looked at
 tree/ignore.ts     what git would ignore, as a pure function over a string

@@ -60,7 +60,7 @@ const SIZES = [
  */
 const hello = (project) => `
   window.postMessage({
-    type: 'roadmap.hello',
+    type: 'kehikot.hello',
     protocol: 2,
     session: 'measure',
     state: null,

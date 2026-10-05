@@ -1,6 +1,6 @@
-import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'roadmap-module-protocol'
+import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
 
-export const ID = 'roadmap.explorer'
+export const ID = 'kehikot.explorer'
 export const VERSION = '1.0.0'
 
 /**
@@ -90,7 +90,7 @@ export const VERSION = '1.0.0'
  * ## The mode is epic-scoped, because `projectPath` only arrives there
  *
  * One mode, which becomes an ordinary tab in the mode row. `scope: 'epic'`
- * because an epic-scoped mode is the one that receives `roadmap.context` — and
+ * because an epic-scoped mode is the one that receives `kehikot.context` — and
  * the context is where `projectPath` lives. A `global` mode is never sent one,
  * which for this app means a container that can never learn which directory it
  * is the explorer OF. The same context carries `passage`, which is how a row

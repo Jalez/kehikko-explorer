@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { ModuleContext } from 'roadmap-module-protocol'
+import type { ModuleContext } from 'kehikot-module-protocol'
 
-import { connect, type Connection, type HostEvents } from 'roadmap-module-protocol/client'
+import { connect, type Connection, type HostEvents } from 'kehikot-module-protocol/client'
 
 /**
  * The bridge, as one React value.
  *
- * `roadmap-module-protocol/client` is the wire and knows no React; this is the
+ * `kehikot-module-protocol/client` is the wire and knows no React; this is the
  * only file that turns messages into state, and it is deliberately the only
  * one. Two places driving "what can this page see" would eventually disagree.
  *
@@ -112,7 +112,7 @@ export interface Roadmap {
  */
 export type GotoHandler = NonNullable<HostEvents['onGoto']>
 
-export function useRoadmap(id: string, onGoto: GotoHandler): Roadmap {
+export function useKehikot(id: string, onGoto: GotoHandler): Roadmap {
   const [where, setWhere] = useState<Where>('listening')
   const [project, setProject] = useState<string | null>(null)
   const [projectPath, setProjectPath] = useState<string | null>(null)

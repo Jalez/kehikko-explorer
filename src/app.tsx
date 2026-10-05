@@ -11,7 +11,7 @@ import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
 import { Empty, Listening, NoProject, Trouble } from '@/view/screens.tsx'
 import { useTree } from '@/use-tree.ts'
-import { useRoadmap, type GotoHandler } from '@/wire/use-roadmap.ts'
+import { useKehikot, type GotoHandler } from '@/wire/use-kehikot.ts'
 
 /**
  * The tallest frame this container will ever ask a host for, and the strip below
@@ -44,7 +44,7 @@ const CHROME = 28
  * canvas passage — so a press here moves them. That is this module's reason to
  * exist beside the others rather than as a nicer `ls`.
  *
- * The bound on that press is in `manifest.ts` and in `wire/use-roadmap.ts`, and
+ * The bound on that press is in `manifest.ts` and in `wire/use-kehikot.ts`, and
  * it is worth one line here because this is where it would be broken: **the
  * only call to `point` in this file is inside a press handler.** Not in an
  * effect, not when a listing arrives, not on mount.
@@ -108,11 +108,11 @@ export function App() {
     )
   }, [])
 
-  const { where, projectPath, passage, resize, point } = useRoadmap(ID, onGoto)
+  const { where, projectPath, passage, resize, point } = useKehikot(ID, onGoto)
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
 
   /*
-   * Nothing is offered to `roadmap.filters`, and that is a decision this file
+   * Nothing is offered to `kehikot.filters`, and that is a decision this file
    * has already made once under another name.
    *
    * The protocol lets a module say what it can be narrowed by so the host can
@@ -187,7 +187,7 @@ export function App() {
        * and the row disables itself rather than being silently inert.
        */
       point: where === 'hosted' && projectPath
-        ? (path: string) => point({ path: absoluteOf(projectPath, path), page: null, from: null, to: null, quoted: '' })
+        ? (path: string) => point({ path: absoluteOf(projectPath, path), page: null, from: null, to: null, quoted: '', section: null })
         : null,
       /*
        * Opening the menu is a state change here and NOTHING else.

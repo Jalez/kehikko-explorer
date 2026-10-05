@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { originFor, registerAt } from 'kehikot-module-protocol/serve'
 
 import { ID } from './manifest.ts'
 
@@ -19,8 +19,8 @@ import { ID } from './manifest.ts'
  * ## The filename is the module id
  *
  * Not a field inside the file — the NAME. A host sweeps the directory and takes
- * the id from the filename, so `roadmap.explorer.json` is what makes this
- * `roadmap.explorer`. Two files naming the same port under different names are
+ * the id from the filename, so `kehikot.explorer.json` is what makes this
+ * `kehikot.explorer`. Two files naming the same port under different names are
  * two modules as far as a host is concerned.
  *
  * ## `dir` as well as `url`
@@ -37,12 +37,11 @@ import { ID } from './manifest.ts'
  *
  * ## Where a host looks
  *
- * This line must say exactly what a host's own registry sweep says, and it is
- * copied rather than imported because this directory is meant to stand alone.
- * Writing to the wrong directory is the worst failure a module can have: the
- * host finds nothing, and finds it silently.
+ * That is `registerAt`'s business, not this file's: the protocol package knows
+ * the registry directory (`~/Library/Application Support/Kehikot/modules`, or
+ * `$KEHIKOT_MODULES_DIR`), and a copy of that path here is one more chance to
+ * disagree with a host by a character.
  */
-const registryDir = process.env.ROADMAP_MODULES_DIR ?? join(homedir(), '.roadmap', 'modules')
 
 /**
  * 7970, and the number is not arbitrary.
@@ -54,11 +53,12 @@ const registryDir = process.env.ROADMAP_MODULES_DIR ?? join(homedir(), '.roadmap
  * the two must not drift.
  */
 const port = Number(process.env.PORT ?? 7970)
-const origin = `http://127.0.0.1:${port}`
-const dir = dirname(fileURLToPath(import.meta.url))
+const written = registerAt({
+  id: ID,
+  origin: originFor(port),
+  dir: dirname(fileURLToPath(import.meta.url)),
+})
 
-mkdirSync(registryDir, { recursive: true })
-const file = join(registryDir, `${ID}.json`)
-writeFileSync(file, `${JSON.stringify({ url: origin, dir }, null, 2)}\n`)
-console.log(`registered: ${file} -> ${origin} (${dir})`)
+console.log(`registered: ${written.file} -> ${written.url} (${written.dir})`)
+if (written.was) console.log(`  (was ${written.was.url} in ${written.was.dir})`)
 console.log('Start the app with ./run.sh, then reload the host; it sweeps the directory on every read.')
