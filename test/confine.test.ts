@@ -210,14 +210,16 @@ describe('rootOf', () => {
     test('a root inside a configured directory is allowed', () => {
       process.env.EXPLORER_ROOTS = scratch
       expect(rootOf(root)).toBe(root)
-      process.env.EXPLORER_ROOTS = before
+      if (before === undefined) delete process.env.EXPLORER_ROOTS
+      else process.env.EXPLORER_ROOTS = before
     })
 
     test('a root outside every configured directory is refused', () => {
       process.env.EXPLORER_ROOTS = root
       expect(rootOf(outside)).toBeNull()
       expect(rootOf(evil)).toBeNull()
-      process.env.EXPLORER_ROOTS = before
+      if (before === undefined) delete process.env.EXPLORER_ROOTS
+      else process.env.EXPLORER_ROOTS = before
     })
 
     /*
@@ -229,14 +231,16 @@ describe('rootOf', () => {
       expect(rootOf(root)).toBe(root)
       expect(rootOf(outside)).toBe(outside)
       expect(rootOf(evil)).toBeNull()
-      process.env.EXPLORER_ROOTS = before
+      if (before === undefined) delete process.env.EXPLORER_ROOTS
+      else process.env.EXPLORER_ROOTS = before
     })
 
     test('a relative entry in the list is skipped rather than resolved', () => {
       process.env.EXPLORER_ROOTS = `relative:${root}`
       expect(rootOf(root)).toBe(root)
       expect(rootOf(outside)).toBeNull()
-      process.env.EXPLORER_ROOTS = before
+      if (before === undefined) delete process.env.EXPLORER_ROOTS
+      else process.env.EXPLORER_ROOTS = before
     })
   })
 })
