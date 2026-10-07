@@ -73,7 +73,8 @@ describe('/healthz', () => {
     expect(JSON.stringify(body)).not.toContain(root)
     expect(JSON.stringify(body)).not.toContain('/somewhere/else')
     expect(body.roots).toBe('2 configured')
-    process.env.EXPLORER_ROOTS = before
+    if (before === undefined) delete process.env.EXPLORER_ROOTS
+    else process.env.EXPLORER_ROOTS = before
   })
 })
 
