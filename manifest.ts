@@ -142,6 +142,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   id: ID,
   name: 'Explorer',
   version: VERSION,
+  /* Where a host files this module in its list, most fitting first. */
+  tags: ['code'],
   summary:
     'The working tree of the project that is open, read one directory at a time. Pressing a file points the canvas at it.',
   /**
