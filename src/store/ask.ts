@@ -1,3 +1,5 @@
+import { ask } from 'kehikot-module-protocol/client'
+
 import type { Entry } from '../../tree/shape.ts'
 
 /**
@@ -12,7 +14,8 @@ import type { Entry } from '../../tree/shape.ts'
 
 export type Answer =
   | { ok: true; root: string; path: string; entries: Entry[]; more: number }
-  | { ok: false; error: string }
+  /** `down` when nothing answered at all: the shared cover says that, with Try again, so no row has to. */
+  | { ok: false; error: string; down?: true }
 
 /**
  * One directory, read once.
@@ -27,23 +30,25 @@ export type Answer =
  * not.
  */
 export async function readDir(projectPath: string, path: string, signal: AbortSignal): Promise<Answer> {
-  const query = new URLSearchParams({ projectPath })
-  if (path) query.set('path', path)
-  try {
-    const response = await fetch(`./api/tree?${query.toString()}`, { signal })
-    const body: unknown = await response.json()
-    if (body && typeof body === 'object' && 'ok' in body) return body as Answer
+  /* The protocol's `ask`: one typed result for every failure, and the page's standing with its own
+     server kept up to date as a side effect — which is what draws the "not answering" cover and
+     reloads a page that is older than its server. */
+  const asked = await ask<Answer>('./api/tree', { query: { projectPath, path: path || null }, signal })
+  /*
+   * An abort is not a failure and must not be drawn as one.
+   *
+   * It happens on every unmount and on every superseded read, which is to say
+   * constantly, and a container that showed "could not reach its own store"
+   * every time somebody clicked twice would be a container nobody believes
+   * when it is telling the truth.
+   */
+  if (signal.aborted) return { ok: false, error: '' }
+  if (asked.ok) {
+    const body = asked.body
+    if (body && typeof body === 'object' && 'ok' in body) return body
     return { ok: false, error: 'This app could not read its own answer.' }
-  } catch (e) {
-    /*
-     * An abort is not a failure and must not be drawn as one.
-     *
-     * It happens on every unmount and on every superseded read, which is to say
-     * constantly, and a container that showed "could not reach its own store"
-     * every time somebody clicked twice would be a container nobody believes
-     * when it is telling the truth.
-     */
-    if (e instanceof DOMException && e.name === 'AbortError') return { ok: false, error: '' }
-    return { ok: false, error: 'This app could not reach its own reader.' }
   }
+  if (asked.kind === 'down') return { ok: false, error: asked.error, down: true }
+  /* The server's own sentence: `tree/read.ts` words one refusal and this does not reword it. */
+  return { ok: false, error: asked.error }
 }

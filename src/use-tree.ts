@@ -143,6 +143,16 @@ export function useTree(projectPath: string | null): Tree {
           /* An aborted read carries no sentence and must draw nothing. */
           if (!answer.error) return
           /*
+           * Nothing answered at all: this app's own server is stopped.
+           *
+           * Not a fact about the directory, so the directory is left as it was —
+           * still open, its last listing still held — and no sentence is set
+           * here. The page draws the shared "own server is not answering" cover
+           * from the standing `ask` keeps, and its Try again is `refresh`, which
+           * reads the root and everything open again.
+           */
+          if (answer.down) return
+          /*
            * A subdirectory that cannot be read closes itself; only the root
            * puts a sentence on the screen.
            *

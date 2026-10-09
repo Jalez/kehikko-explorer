@@ -16,46 +16,11 @@
  * for whoever changes this file, not for somebody looking for a file.
  */
 
-/** Waiting for a greeting, for under a second, saying what it is waiting for. */
-export function Listening() {
-  return (
-    <div className="p-3">
-      <p className="text-xs text-muted-foreground">Waiting to be told which project is open…</p>
-    </div>
-  )
-}
-
-/**
- * Nobody said where the project is, so there is no root and no tree.
- *
- * `projectPath` is nullable on the wire for perfectly ordinary reasons — nobody
- * has opened a project, this page was opened directly on its own port, or the
- * host has no filesystem of its own to point at — and not one of them is this
- * app being broken. So there is no spinner and no error colour.
- *
- * There is also no press, and that is the decision. The obvious escape hatch is
- * a box to type a folder into, and it is exactly wrong: this app would then be
- * showing a directory nobody on the canvas is working in, while every other
- * container shows the project. A tree of the wrong project is worse than no tree,
- * because it looks right.
- *
- * The heading appears only when nothing is framing this page. A host prints the
- * module's name in the container header; a page that also printed "Explorer" at
- * the top of itself would be saying the name twice and spending a fixed strip
- * of a short container on the repetition.
+/*
+ * Waiting, nothing framing the page, no project, and this app's own server not
+ * answering are not here: they are the protocol's shared `Cover`, drawn from
+ * `app.tsx`, in the same words and the same look as every other module.
  */
-export function NoProject({ unhosted }: { unhosted: boolean }) {
-  return (
-    <div className="space-y-2 p-3">
-      {unhosted ? <h1 className="text-sm font-semibold">Explorer</h1> : null}
-      <p data-testid="no-project" className="text-xs text-muted-foreground">
-        {unhosted
-          ? 'Nothing is framing this page, so nothing has said which project to show.'
-          : 'This canvas has not said which project is open, so there is nothing to show yet.'}
-      </p>
-    </div>
-  )
-}
 
 /**
  * The root was read and there is nothing in it.

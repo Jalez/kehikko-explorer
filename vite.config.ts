@@ -1,149 +1,43 @@
-import type { IncomingMessage } from 'node:http'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
-import { frameAncestors } from 'kehikot-module-protocol/serve'
-import { defineConfig, type Plugin } from 'vite'
+import { doors, serves } from 'kehikot-module-protocol/serve'
+import { defineConfig } from 'vite'
 
-import { MANIFEST, answer } from './doors.ts'
-import { page } from './page/document.ts'
-
-/**
- * Every door this app answers on, served by the one process that serves the
- * page.
- *
- * ## Why they cannot be a second server
- *
- * A module is ONE ORIGIN or it is nothing: the protocol refuses a manifest
- * whose `entry` points anywhere but the origin that served the manifest, and it
- * is right to — a program that could name somebody else's page would be a
- * program that could have the host frame somebody else.
- *
- * Here that reaches further than the manifest. The page fetches `/api/tree` as
- * a relative path, which is how the app works with nothing else running at all.
- * A reader on a second port would make every one of those fetches cross-origin
- * — and would mean this app could not read its own answers inside the frame it
- * exists to live in. So the doors are middleware in front of the same server
- * that serves the page, and `doors.ts` holds the deciding without holding a
- * socket.
- */
-function doors(): Plugin {
-  return {
-    name: 'explorer-doors',
-    configureServer(server) {
-      server.middlewares.use((request, response, next) => {
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-        const path = url.pathname
-        const method = (request.method ?? 'GET').toUpperCase()
-
-        const send = (status: number, body: unknown) => {
-          if (body === null) {
-            response.statusCode = status
-            response.end()
-            return
-          }
-          response.statusCode = status
-          response.setHeader('content-type', 'application/json; charset=utf-8')
-          response.end(JSON.stringify(body, null, 2))
-        }
-
-        /* Spelled by the protocol package so that this app and every host cannot
-           disagree about it by a character. */
-        if (path === WELL_KNOWN) return send(200, MANIFEST)
-
-        /* The same manifest in the spelling a host from before the rename asks
-           for, so that host still finds this module. It greets in that
-           dialect and the protocol's client answers in it. */
-        if (path === LEGACY_WELL_KNOWN) return send(200, legacyManifest(MANIFEST))
-
-        if (path === '/app' || path === '/app/' || path === '/') {
-          void server
-            .transformIndexHtml(request.url ?? '/app', page(), request.originalUrl)
-            .then((html) => {
-              response.statusCode = 200
-              response.setHeader('content-type', 'text/html; charset=utf-8')
-              response.setHeader('cache-control', 'no-store')
-              /*
-               * Framed by a host and by nothing else — and by nothing at all is
-               * fine too, which is what opening this page directly is.
-               *
-               * `frame-ancestors` is the module's own half of the arrangement: a
-               * host says which origins IT will frame, and this says who may
-               * frame this. It is deliberately not a list of one: whoever is
-               * running this decides, through `KEHIKOT_ORIGIN` (or the older `ROADMAP_ORIGIN`), via `frameAncestors()`, and the default
-               * is the address the host in this workspace actually serves on.
-               *
-               * It matters more here than in a module that draws its own
-               * material. A page that can be framed by anybody is a page whose
-               * layout an attacker can position under a cursor, and this one's
-               * rows are directory names read off somebody's disk.
-               */
-              response.setHeader(
-                'content-security-policy',
-                frameAncestors(),
-              )
-              response.end(html)
-            })
-            .catch(next)
-          return
-        }
-
-        const ours = path === '/healthz' || path === '/mcp' || path.startsWith('/api/')
-        if (!ours) return next()
-
-        /* Only `/mcp` reads a body, and only it waits for one. Vite's own
-           middleware stack has to keep seeing an unconsumed request for
-           everything else. */
-        void body(request)
-          .then((parsed) => {
-            const reply = answer(method, path, url.searchParams, parsed)
-            if (!reply) return next()
-            send(reply.status, reply.body)
-          })
-          .catch(next)
-      })
-    },
-  }
-}
+import { BUILD, MANIFEST, answer } from './doors.ts'
+import { ID, PREFERRED_PORT } from './manifest.ts'
 
 /**
- * The request body, as JSON, or null.
+ * The two style rules that live in the document rather than in the CSS, handed to the protocol's
+ * `pageDocument` as its `head`.
  *
- * Bounded at a megabyte, because the caller is whatever on this machine found
- * the port — loopback is a fence around the machine and not around the programs
- * on it — and a handler that reads until the socket closes is a handler that can
- * be asked to read forever. The only thing this app accepts a body for is a
- * JSON-RPC call at `/mcp`, which is a few hundred bytes; the bound is a bound
- * rather than a budget.
+ * `height: 100%` on `html`, `body` and the root, and `overflow: hidden` on the body. A tree is the
+ * one container here that scrolls INTERNALLY: a project with four thousand visible rows cannot ask
+ * the host for a thirty-thousand-pixel frame, so this page takes the height it is given and scrolls
+ * inside it — which requires that the height actually reach the scroll container. A default
+ * `html { height: auto }` silently breaks that chain: the container measures zero, the virtualizer
+ * renders no rows, and the page is blank with no error anywhere.
  *
- * Unparseable is null rather than a throw, and `doors.ts` says "that was not a
- * request" about it. A malformed body is an ordinary answer to give.
+ * `overflow: hidden` on the body is the standing rule of this workspace made literal: the BODY
+ * never scrolls, in either direction. Everything that scrolls does so in a container inside it.
  */
-const MAX_BODY_BYTES = 1_000_000
-
-async function body(request: IncomingMessage): Promise<Record<string, unknown> | null> {
-  if ((request.method ?? 'GET').toUpperCase() !== 'POST') return null
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of request) {
-    const piece = chunk as Buffer
-    size += piece.length
-    if (size > MAX_BODY_BYTES) return null
-    chunks.push(piece)
-  }
-  if (!chunks.length) return null
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
-  } catch {
-    return null
-  }
-}
+const PAGE_HEAD = '<style>html, body, #root { height: 100%; } body { margin: 0; overflow: hidden; }</style>'
 
 /**
  * The dev server, and the one line missing from it that matters most.
+ *
+ * ## `serves()` and `doors()`
+ *
+ * `serves()` decides the port from `PREFERRED_PORT` (or $PORT from a host) and keeps the
+ * registration true, so there is no `server.port` here and no `--port` in `run.sh`.
+ *
+ * `doors()` is every door this app answers on, served by the one process that serves the page: the
+ * manifest at both well-known paths, `/app` with the build printed into it (and no ticket — this
+ * module has no writes), and `/healthz`, `/mcp` and `/api/*` through `answer` in doors.ts. A module
+ * is ONE ORIGIN — the page fetches `/api/tree` as a relative path — and `/app` has to be claimed
+ * before Vite's resolver sees it, because this repository has a `src/app.tsx`. See the protocol's
+ * docs/module-plumbing.md.
  *
  * ## No `server.cors` — this module declares storage instead
  *
@@ -184,7 +78,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  * `run.sh` runs Vite. Nothing serves a `dist/`, so a build would produce a
  * second answer to "what does this page say" which disagrees with the first the
  * moment somebody edits `src/`. It also could not succeed: the page is
- * generated by the middleware above and there is no `index.html` for Rollup to
+ * generated by `doors()` and there is no `index.html` for Rollup to
  * start from.
  */
 export default defineConfig({
@@ -196,6 +90,11 @@ export default defineConfig({
    * just fetched.
    */
   base: './',
-  plugins: [doors(), react(), tailwindcss()],
+  plugins: [
+    serves({ id: ID, prefer: PREFERRED_PORT }),
+    doors({ manifest: MANIFEST, answer, build: BUILD, page: { title: 'Explorer', head: PAGE_HEAD } }),
+    react(),
+    tailwindcss(),
+  ],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
 })

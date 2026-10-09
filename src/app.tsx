@@ -1,4 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
+import type { HostEvents } from 'kehikot-module-protocol/client'
+import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ID } from '../manifest.ts'
@@ -9,9 +11,11 @@ import type { Copied } from '@/lib/copy.ts'
 import { Button } from '@/components/ui/button.tsx'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
-import { Empty, Listening, NoProject, Trouble } from '@/view/screens.tsx'
+import { Empty, Trouble } from '@/view/screens.tsx'
 import { useTree } from '@/use-tree.ts'
-import { useKehikot, type GotoHandler } from '@/wire/use-kehikot.ts'
+
+/** What to do when the host says "go to this reference". The contract is the protocol's: `answer` must be called. */
+type GotoHandler = NonNullable<HostEvents['onGoto']>
 
 /**
  * The tallest frame this container will ever ask a host for, and the strip below
@@ -22,7 +26,7 @@ import { useKehikot, type GotoHandler } from '@/wire/use-kehikot.ts'
  * an 88,000-pixel frame is asking a host to do something absurd on behalf of a
  * container in the corner of a canvas. So it asks for what it would like up to
  * this, and scrolls internally past it — the arrangement a sidebar has, and the
- * reason `page/document.ts` makes the body a fixed-height non-scrolling box.
+ * reason `PAGE_HEAD` in `vite.config.ts` makes the body a fixed-height non-scrolling box.
  */
 const MOST_WE_WILL_ASK_FOR = 420
 /** The control row at the bottom, which is 24 tall plus its border and padding. */
@@ -44,10 +48,20 @@ const CHROME = 28
  * canvas passage — so a press here moves them. That is this module's reason to
  * exist beside the others rather than as a nicer `ls`.
  *
- * The bound on that press is in `manifest.ts` and in `wire/use-kehikot.ts`, and
- * it is worth one line here because this is where it would be broken: **the
- * only call to `point` in this file is inside a press handler.** Not in an
- * effect, not when a listing arrives, not on mount.
+ * The bound on that press is in `manifest.ts`, and it is enforced here because
+ * this is where it would be broken: **the only call to `point` in this file is
+ * inside a press handler.** Not in an effect, not when a listing arrives, not
+ * when a context arrives, not on mount. A tree that pointed the canvas at
+ * whatever it noticed would be using a permission to move every other container
+ * as a side effect of its own housekeeping. `point` is the protocol's
+ * (`useHost`): fire and forget, every refusal swallowed, silent before the
+ * greeting.
+ *
+ * ## The passage is the host's answer, never a memory
+ *
+ * `passage` is read off every context, null included, only to MARK a row. This
+ * page can point too, and the field is read the same way whoever set it: a
+ * press the host refuses changes nothing here.
  *
  * ## Two techniques from VS Code, and this file is the second one
  *
@@ -108,7 +122,10 @@ export function App() {
     )
   }, [])
 
-  const { where, projectPath, passage, resize, point } = useKehikot(ID, onGoto)
+  /* The protocol's host hook: where the page stands, the theme on `<html>`, the flattened context. */
+  const { where, projectPath, passage, resize, point } = useHost(ID, { onGoto })
+  /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
+  const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
 
   /*
@@ -157,16 +174,19 @@ export function App() {
    * symlink will not match, which is the correct amount of certainty for a
    * highlight.
    */
+  const pointedPath = passage?.path ?? null
   const pointedAt = useMemo(() => {
-    if (!passage || !projectPath) return null
+    if (!pointedPath || !projectPath) return null
     /* `rootOf` rather than a local trailing-slash rule, because `absoluteOf`
        below builds the other direction with the same function — and the one
        failure worth designing out here is the two of them disagreeing, which
        shows up as a file this app itself just pointed at refusing to mark
        itself. See `tree/paths.ts`. */
     const root = `${rootOf(projectPath)}/`
-    return passage.path.startsWith(root) ? passage.path.slice(root.length) : null
-  }, [passage, projectPath])
+    return pointedPath.startsWith(root) ? pointedPath.slice(root.length) : null
+    /* Keyed on the path and not on the passage: the host builds a fresh passage object on every
+       context, and the path is the only part of it this page reads. */
+  }, [pointedPath, projectPath])
 
   const actions: RowActions = useMemo(
     () => ({
@@ -295,7 +315,7 @@ export function App() {
    * 88,000-pixel frame is asking a host to do something absurd on behalf of a
    * container in the corner of a canvas. So this asks for what it would like up
    * to 420 pixels and scrolls internally past that — which is the same
-   * arrangement a sidebar has, and the reason `page/document.ts` makes the body
+   * arrangement a sidebar has, and the reason `PAGE_HEAD` in `vite.config.ts` makes the body
    * a fixed-height non-scrolling box.
    *
    * The host clamps it and may ignore it entirely; that is the protocol.
@@ -311,24 +331,37 @@ export function App() {
     resize(wanted + CHROME)
   }, [resize, rows.length, height])
 
-  if (where === 'listening') return <Listening />
-  if (!projectPath) return <NoProject unhosted={where === 'unhosted'} />
-  if (trouble) return <Trouble said={trouble} />
+  /*
+   * Every not-ready moment is the protocol's one cover, and the order is what makes it true: a
+   * page that has not been greeted is `waiting`, never "no project"; then nothing framing it, then
+   * no project; and only with a project in hand, its own server not answering.
+   *
+   * No project means no root and no tree, and there is deliberately no press beside it. The obvious
+   * escape hatch is a box to type a folder into, and it is exactly wrong: this app would then be
+   * showing a directory nobody on the canvas is working in. A tree of the wrong project is worse
+   * than no tree, because it looks right.
+   */
+  const cover: CoverState | null =
+    server === 'stale' ? 'stale' : (coverFor({ where, projectPath }) ?? (server === 'down' ? 'down' : null))
+  if (cover && cover !== 'down') return <Cover state={cover} name="Explorer" />
 
   const readRoot = loaded.get('')
-  /* Still reading the root: no screen at all rather than a spinner. It is one
-     `readdir` and it is done in single-digit milliseconds; anything drawn here
-     is a flash the person reads as a fault. */
-  if (!readRoot) return <div className="p-3" data-testid="reading" />
-  if (!rows.length) return <Empty />
-
-  return (
+  const screen = trouble ? (
+    <Trouble said={trouble} />
+  ) : !readRoot ? (
+    /* Still reading the root: no screen at all rather than a spinner. It is one
+       `readdir` and it is done in single-digit milliseconds; anything drawn here
+       is a flash the person reads as a fault. */
+    <div className="p-3" data-testid="reading" />
+  ) : !rows.length ? (
+    <Empty />
+  ) : (
     <div className="flex h-full min-w-0 flex-col">
       {/*
        * The scroll container, and the only thing on this page that scrolls.
        *
        * `overflow-x` is not set to anything: the body cannot scroll sideways at
-       * all (see `page/document.ts`) and every row truncates rather than
+       * all (see `PAGE_HEAD` in `vite.config.ts`) and every row truncates rather than
        * widening, so a horizontal overflow is prevented rather than hidden.
        * Setting `overflow-x: hidden` here would clip a row that had a bug in it
        * instead of letting the bug be visible in a test.
@@ -432,5 +465,17 @@ export function App() {
         <RowMenu at={menu} projectPath={projectPath} onCopied={onCopied} onClose={() => setMenu(null)} />
       ) : null}
     </div>
+  )
+
+  return (
+    <>
+      {/* Nothing answered the last read. Try again reads the root and everything open again. */}
+      {cover === 'down' ? <Cover state="down" name="Explorer" onRetry={refresh} /> : null}
+      {/* Kept mounted under the cover, so the folders somebody opened and where they had scrolled
+          to are still there when the server answers again. */}
+      <div hidden={cover === 'down'} className="h-full min-w-0">
+        {screen}
+      </div>
+    </>
   )
 }

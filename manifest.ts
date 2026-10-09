@@ -2,6 +2,8 @@ import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-
 
 export const ID = 'kehikot.explorer'
 export const VERSION = '1.0.0'
+/** The port `serves()` takes when nothing else has it and no host said one in $PORT. `register.ts` reads it too. */
+export const PREFERRED_PORT = 7970
 
 /**
  * What this app says about itself when a host asks.

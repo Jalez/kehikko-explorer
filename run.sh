@@ -6,10 +6,10 @@
 #   - No arguments. A registration names a directory and one script inside it,
 #     never a command line: a string a host handed to a shell would make a
 #     registration file a place to write shell.
-#   - $PORT from the environment. Whoever starts this chose the port; a script
-#     that picked its own would answer somewhere nobody is looking. 7970 is the
-#     default and it is the number in `register.ts` too — 7820 through 7960
-#     belong to the other modules on this machine.
+#   - $PORT from the environment. Whoever starts this chose the port, and
+#     `serves()` in `vite.config.ts` reads it; without one it prefers 7970
+#     (`PREFERRED_PORT` in `manifest.ts`) and, if something else has that,
+#     moves to the next free port and says so.
 #   - `exec`, and the foreground. A script that forks and returns leaves whoever
 #     started it holding a pid that stops nothing, and Stop is only ever offered
 #     for what a host started.
@@ -17,9 +17,9 @@
 #     are found however the script was invoked. Nothing else depends on the
 #     working directory: this app opens no file of its own and keeps no store.
 #
-# It does NOT register. Registration is a deliberate act by a person — see
-# `register.ts` — and a start script that quietly wrote into somebody's home
-# directory would be doing it on their behalf.
+# It does not ADOPT the module on anybody's behalf — that is `register.ts`, a
+# deliberate act by a person. What `serves()` does on every start is keep the
+# ADDRESS of the registration true: it writes the port it actually bound.
 #
 # ## There is no build here, and no `dist`
 #
@@ -28,7 +28,7 @@
 # afternoons in three separate programs. A missing build announces itself; a
 # stale one does not. So Vite serves the page, and the manifest, the health
 # check, the MCP door and this app's `/api` are middleware in front of the same
-# server — see `doors()` in `vite.config.ts` — because a module is one origin or
+# server — the protocol's `doors()` in `vite.config.ts` — because a module is one origin or
 # it is nothing.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -72,4 +72,4 @@ if [ ! -d node_modules ] || [ ! -f "$INSTALLED" ] || [ bun.lock -nt "$INSTALLED"
   VITE_FORCE=--force
 fi
 
-exec bunx vite --host 127.0.0.1 --port "${PORT:-7970}" --strictPort $VITE_FORCE
+exec bunx vite $VITE_FORCE

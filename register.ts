@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { originFor, registerAt } from 'kehikot-module-protocol/serve'
 
-import { ID } from './manifest.ts'
+import { ID, PREFERRED_PORT } from './manifest.ts'
 
 /**
  * Tell a host on this machine where this app answers.
@@ -49,10 +49,14 @@ import { ID } from './manifest.ts'
  * 7820 through 7960 are the other modules on this machine. A module that
  * defaulted to a port somebody else had would answer nothing, or worse, would
  * fail to start while its neighbour went on serving a page the host attributed
- * to this one. `run.sh` defaults to the same number for the same reason, and
- * the two must not drift.
+ * to this one. It is `PREFERRED_PORT` in `manifest.ts`, the same constant
+ * `serves()` in `vite.config.ts` starts from, so the two cannot drift.
+ *
+ * `serves()` rewrites this same file every time the server starts, with the
+ * port it actually bound. That keeps the ADDRESS true; running this program is
+ * still how a person ADOPTS the module in the first place.
  */
-const port = Number(process.env.PORT ?? 7970)
+const port = Number(process.env.PORT ?? PREFERRED_PORT)
 const written = registerAt({
   id: ID,
   origin: originFor(port),

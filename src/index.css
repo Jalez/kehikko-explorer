@@ -169,7 +169,7 @@
    *
    * On `#root` rather than on `body`, which is a departure from the sibling
    * modules and is deliberate. `body` here carries `overflow: hidden` and a
-   * fixed height — see the essay in `page/document.ts` — and a container that
+   * fixed height — see `PAGE_HEAD` in `vite.config.ts` — and a container that
    * is also the overflow root is a container whose size can be affected by the
    * thing measuring it. `#root` is the outermost element this app actually
    * lays out, so it is the honest one to measure.
