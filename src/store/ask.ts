@@ -1,4 +1,4 @@
-import { ask } from 'kehikot-module-protocol/client'
+import { ask, replied, type AskFailed } from 'kehikot-module-protocol/client'
 
 import type { Entry } from '../../tree/shape.ts'
 
@@ -43,12 +43,12 @@ export async function readDir(projectPath: string, path: string, signal: AbortSi
    * when it is telling the truth.
    */
   if (signal.aborted) return { ok: false, error: '' }
-  if (asked.ok) {
-    const body = asked.body
-    if (body && typeof body === 'object' && 'ok' in body) return body
-    return { ok: false, error: 'This app could not read its own answer.' }
+  try {
+    return replied(asked)
+  } catch (failed) {
+    /* Nothing answered, a page older than its server, or an answer that is not this app's: `ask`'s
+       own sentence. A refusal came back above, in the server's words — `tree/read.ts` words one. */
+    const { kind, message } = failed as AskFailed
+    return kind === 'down' ? { ok: false, error: message, down: true } : { ok: false, error: message }
   }
-  if (asked.kind === 'down') return { ok: false, error: asked.error, down: true }
-  /* The server's own sentence: `tree/read.ts` words one refusal and this does not reword it. */
-  return { ok: false, error: asked.error }
 }

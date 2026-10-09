@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { HostEvents } from 'kehikot-module-protocol/client'
 import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ID } from '../manifest.ts'
 import { flatten } from '../tree/flatten.ts'
@@ -9,6 +9,7 @@ import { absoluteOf, rootOf } from '../tree/paths.ts'
 
 import type { Copied } from '@/lib/copy.ts'
 import { Button } from '@/components/ui/button.tsx'
+import { keepView, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
 import { Empty, Trouble } from '@/view/screens.tsx'
@@ -306,6 +307,21 @@ export function App() {
   })
 
   /*
+   * Where the tree was scrolled to before this page was reloaded, put back once per project — and
+   * only when the root and every folder that was open have answered, because until then the tree
+   * is shorter than the place to return to. A layout effect, so it is never painted at the top
+   * first. Until it has happened, no scroll is written down: the tree arriving is not somebody
+   * scrolling.
+   */
+  const scrolled = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const element = scroller.current
+    if (!element || !projectPath || scrolled.current === projectPath || !loaded.has('') || loading.size) return
+    element.scrollTop = viewOf(projectPath).top
+    scrolled.current = projectPath
+  }, [projectPath, loaded, loading, rows])
+
+  /*
    * How tall this page would like its frame to be, asked for once per change in
    * the number of rows.
    *
@@ -341,8 +357,7 @@ export function App() {
    * showing a directory nobody on the canvas is working in. A tree of the wrong project is worse
    * than no tree, because it looks right.
    */
-  const cover: CoverState | null =
-    server === 'stale' ? 'stale' : (coverFor({ where, projectPath }) ?? (server === 'down' ? 'down' : null))
+  const cover: CoverState | null = coverFor({ where, projectPath, server })
   if (cover && cover !== 'down') return <Cover state={cover} name="Explorer" />
 
   const readRoot = loaded.get('')
@@ -366,7 +381,14 @@ export function App() {
        * Setting `overflow-x: hidden` here would clip a row that had a bug in it
        * instead of letting the bug be visible in a test.
        */}
-      <div ref={scroller} data-testid="scroller" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-1 @sm/container:p-1.5">
+      <div
+        ref={scroller}
+        data-testid="scroller"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto p-1 @sm/container:p-1.5"
+        onScroll={(event) => {
+          if (projectPath && scrolled.current === projectPath) keepView(projectPath, { top: event.currentTarget.scrollTop })
+        }}
+      >
         <div style={{ height: virtual.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtual.getVirtualItems().map((item) => {
             const row = rows[item.index]
