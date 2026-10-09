@@ -155,7 +155,7 @@ export function RowMenu({
    *
    * `window.innerWidth/Height` is the right box here and would be wrong in a
    * page that scrolled: the body is a fixed-height, non-scrolling box (see
-   * `page/document.ts`), so the viewport IS the whole document and a
+   * `PAGE_HEAD` in `vite.config.ts`), so the viewport IS the whole document and a
    * `position: fixed` menu inside the viewport is inside the frame. There is
    * no scroll offset to add, and adding one would be a bug that only appeared
    * if that decision were ever reversed.

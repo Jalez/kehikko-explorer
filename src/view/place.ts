@@ -8,7 +8,7 @@
  * of a wide container is correct under every arithmetic mistake in here; the
  * bug only appears on the last row of a container 220 pixels wide, which is
  * this app's NORMAL size and the hardest place to catch anything by looking.
- * The frame does not scroll — `page/document.ts` makes the body a fixed-height
+ * The frame does not scroll — `PAGE_HEAD` in `vite.config.ts` makes the body a fixed-height
  * non-scrolling box — so a menu placed past the edge is not merely awkward, it
  * is unreachable, and the person's only recourse is to press Escape and resize
  * a container to read two menu items.

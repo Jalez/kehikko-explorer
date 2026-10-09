@@ -10,7 +10,7 @@ pointing.
 ```
 ./run.sh                      # http://127.0.0.1:7970
 bun run register              # tell a host on this machine where it answers
-bun test                      # 212 tests, no browser needed for any of them
+bun test                      # 213 tests, no browser needed for any of them
 bun run typecheck
 ```
 
@@ -203,7 +203,7 @@ would mean two answers to one question.
 ```
 manifest.ts        what a host reads, and where every bound is written down
 doors.ts           /api/tree, /mcp, /healthz — deciding, without a socket
-vite.config.ts     the one server: page, manifest, api, mcp, one origin
+vite.config.ts     the one server: the protocol's serves() and doors(), one origin
 run.sh             ./run.sh, no arguments, $PORT from the environment
 register.ts        write the registration (kehikot.explorer.json in the Kehikot modules directory)
 
@@ -220,7 +220,7 @@ src/lib/copy.ts    the clipboard, both ways, and what to do when neither works
 src/view/row.tsx   one line
 src/view/menu.tsx  the right-click menu: two copies and nothing else
 src/view/place.ts  where a menu goes so all of it is inside a 220px frame
-src/wire/          the host, as one React value
+src/store/ask.ts   the one read of this app's own server, through the protocol's ask()
 
 dev/measure.mjs    the numbers above, reproduced
 dev/pointing.mjs   the bound on passage.set, watched from where a host sits

@@ -1,7 +1,16 @@
 import { rootOf } from './tree/confine.ts'
 import { list, walk } from './tree/read.ts'
 import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
+import { establishBuild } from 'kehikot-module-protocol/serve'
+
 import { ID, MANIFEST, VERSION } from './manifest.ts'
+
+/**
+ * What this process is built from, established once: `doors()` prints it into the page, the
+ * manifest and the health check, and stamps every answer with it — which is how a page left open
+ * across a restart finds out it is older than its server, and reloads.
+ */
+export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
 
 /**
  * Every door this app answers on that is not the page itself.
