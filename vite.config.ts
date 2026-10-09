@@ -33,7 +33,7 @@ const PAGE_HEAD = '<style>html, body, #root { height: 100%; } body { margin: 0; 
  * registration true, so there is no `server.port` here and no `--port` in `run.sh`.
  *
  * `doors()` is every door this app answers on, served by the one process that serves the page: the
- * manifest at both well-known paths, `/app` with the build printed into it (and no ticket — this
+ * manifest at its well-known path, `/app` with the build printed into it (and no ticket — this
  * module has no writes), and `/healthz`, `/mcp` and `/api/*` through `answer` in doors.ts. A module
  * is ONE ORIGIN — the page fetches `/api/tree` as a relative path — and `/app` has to be claimed
  * before Vite's resolver sees it, because this repository has a `src/app.tsx`. See the protocol's
