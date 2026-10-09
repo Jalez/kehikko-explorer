@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { PACKAGE_VERSION } from 'kehikot-module-protocol'
 import { doorsHandler } from 'kehikot-module-protocol/serve'
 
 import { BUILD, MANIFEST, answer } from '../doors.ts'
@@ -317,7 +318,7 @@ describe('served through the protocol’s doors', () => {
     const body = JSON.parse(health.text) as { ok: boolean; build: { version: string; protocol: string; started: string } }
     expect(body.ok).toBe(true)
     expect(body.build).toEqual(BUILD)
-    expect(body.build.protocol).toBe('0.35.0')
+    expect(body.build.protocol).toBe(PACKAGE_VERSION)
     expect(health.headers['x-module-build']).toBeTruthy()
   })
 

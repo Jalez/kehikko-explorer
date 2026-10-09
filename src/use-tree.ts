@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Entry } from '../tree/shape.ts'
 
 import { readDir } from '@/store/ask.ts'
+import { keepView, viewOf } from '@/store/view.ts'
 
 /**
  * What the page knows about the tree, and how it comes to know it.
@@ -112,6 +113,14 @@ export function useTree(projectPath: string | null): Tree {
   openRef.current = open
   const lastRefresh = useRef(0)
 
+  /* Every change to what is open goes through here, so it is written down as it happens: a reload
+     of this page (the person's, Vite's, a stale page's) opens the same folders. `store/view.ts`. */
+  const hold = useCallback((root: string, next: ReadonlySet<string>) => {
+    openRef.current = next
+    setOpen(next)
+    keepView(root, { open: [...next] })
+  }, [])
+
   const read = useCallback(
     (root: string, paths: string[], controller: AbortController) => {
       if (!paths.length) return
@@ -164,16 +173,15 @@ export function useTree(projectPath: string | null): Tree {
            */
           if (path === '') setTrouble(answer.error)
           else {
-            setOpen((was) => {
-              const next = new Set(was)
-              next.delete(path)
-              return next
-            })
+            /* Which is also all that happens to a folder that was open before a reload and is gone now. */
+            const next = new Set(openRef.current)
+            next.delete(path)
+            hold(root, next)
           }
         })
       }
     },
-    [],
+    [hold],
   )
 
   /*
@@ -185,11 +193,15 @@ export function useTree(projectPath: string | null): Tree {
    * under the new project's root — plausible rows, wrong repository, and
    * pressing one would point the canvas at a path that is not in the project
    * anybody is looking at.
+   *
+   * What does come back is this project's own: the folders that were open in it before this page
+   * was reloaded, read again beside the root.
    */
   useEffect(() => {
+    const reopened = projectPath ? viewOf(projectPath).open : []
     flight.current?.abort()
     setLoaded(new Map())
-    setOpen(new Set())
+    setOpen(new Set(reopened))
     setLoading(new Set())
     setTrouble(null)
     setCut(new Map())
@@ -197,7 +209,7 @@ export function useTree(projectPath: string | null): Tree {
 
     const controller = new AbortController()
     flight.current = controller
-    read(projectPath, [''], controller)
+    read(projectPath, ['', ...reopened], controller)
     return () => controller.abort()
   }, [projectPath, read])
 
@@ -236,12 +248,10 @@ export function useTree(projectPath: string | null): Tree {
     (path: string) => {
       if (!projectPath) return
       const wasOpen = openRef.current.has(path)
-      setOpen((was) => {
-        const next = new Set(was)
-        if (wasOpen) next.delete(path)
-        else next.add(path)
-        return next
-      })
+      const next = new Set(openRef.current)
+      if (wasOpen) next.delete(path)
+      else next.add(path)
+      hold(projectPath, next)
       if (wasOpen) return
       /*
        * Opened first, read second, and re-read even when the children are
@@ -257,7 +267,7 @@ export function useTree(projectPath: string | null): Tree {
       const controller = flight.current
       if (controller && !controller.signal.aborted) read(projectPath, [path], controller)
     },
-    [projectPath, read],
+    [projectPath, read, hold],
   )
 
   return useMemo(
