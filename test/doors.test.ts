@@ -322,10 +322,9 @@ describe('served through the protocol’s doors', () => {
     expect(health.headers['x-module-build']).toBeTruthy()
   })
 
-  test('the manifest is served at both well-known paths, with the build', async () => {
+  test('the manifest is served at the well-known path, with the build', async () => {
     const now = JSON.parse((await get('/.well-known/kehikot-module.json')).text) as { id: string; build: unknown }
     expect(now.id).toBe('kehikot.explorer')
     expect(now.build).toEqual(BUILD)
-    expect((await get('/.well-known/roadmap-module.json')).status).toBe(200)
   })
 })
