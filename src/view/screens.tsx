@@ -64,3 +64,18 @@ export function Trouble({ said }: { said: string }) {
     </div>
   )
 }
+
+/**
+ * A tree the picked parts left with no row: the protocol's one sentence, where
+ * the rows were. Drawn only then — while any row is drawn, nothing on this page
+ * says anything about what is picked.
+ */
+export function NoneInFocus({ said }: { said: string }) {
+  return (
+    <div className="p-3">
+      <p data-testid="none-in-focus" className="text-xs text-muted-foreground">
+        {said}
+      </p>
+    </div>
+  )
+}

@@ -50,6 +50,18 @@ directory should not have to find out by looking for a feature that is missing.
 - **It never walks `node_modules` eagerly**, or anything else. One `readdir` per
   press, forever.
 
+## Under a pick of the epic's parts
+
+A part of an epic lists documents, relative to the project, and every row of
+this tree is one. With nothing picked the tree is the whole project. With parts
+picked it is the files those parts list and the folders they are in; a folder
+is shown when something in it is. The file the canvas is pointed at stays
+drawn, with the folders above it, whatever is picked. A pick that leaves no row
+says one sentence where the rows were, and nothing else on the page is about
+the pick. The rule is the protocol's (`useFocus().narrow`); what a row is about
+is `src/focus.ts`. The MCP door answers about the whole project whatever is
+picked.
+
 ## The context menu
 
 Right-click a row — or press Shift+F10, or the Menu key, wherever focus is on

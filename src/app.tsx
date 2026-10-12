@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { HostEvents } from 'kehikot-module-protocol/client'
-import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
+import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ID } from '../manifest.ts'
@@ -9,10 +9,11 @@ import { absoluteOf, rootOf } from '../tree/paths.ts'
 
 import type { Copied } from '@/lib/copy.ts'
 import { Button } from '@/components/ui/button.tsx'
+import { NOUN, anchorOf, heldBy, inHand } from '@/focus.ts'
 import { keepView, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
-import { Empty, Trouble } from '@/view/screens.tsx'
+import { Empty, NoneInFocus, Trouble } from '@/view/screens.tsx'
 import { useTree } from '@/use-tree.ts'
 
 /** What to do when the host says "go to this reference". The contract is the protocol's: `answer` must be called. */
@@ -124,7 +125,7 @@ export function App() {
   }, [])
 
   /* The protocol's host hook: where the page stands, the theme on `<html>`, the flattened context. */
-  const { where, projectPath, passage, resize, point } = useHost(ID, { onGoto })
+  const { where, projectPath, passage, parts, epic, resize, point } = useHost(ID, { onGoto })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
@@ -154,7 +155,7 @@ export function App() {
    */
 
   const view = useMemo(() => ({ loaded, open, loading }), [loaded, open, loading])
-  const rows = useMemo(() => flatten(view), [view])
+  const every = useMemo(() => flatten(view), [view])
   const truncated = useMemo(() => {
     let total = 0
     for (const [path, count] of cut) {
@@ -188,6 +189,23 @@ export function App() {
     /* Keyed on the path and not on the passage: the host builds a fresh passage object on every
        context, and the path is the only part of it this page reads. */
   }, [pointedPath, projectPath])
+
+  /*
+   * The rows in front of the person: every row with nothing picked, and with
+   * parts of the epic picked, the rows a picked part has — a file it lists, a
+   * folder with such a file somewhere in it — and what is in hand. The rule is
+   * the protocol's and so is the sentence; `focus.ts` is what a row is about.
+   *
+   * Narrowed AFTER flattening, so what is open stays open underneath: unpicking
+   * puts back the tree somebody had, folder for folder.
+   */
+  const focus = useFocus({ parts, epic, projectPath })
+  const held = useMemo(() => heldBy(focus.parts, epic), [focus.parts, epic])
+  const menuOn = menu?.path ?? null
+  const { shown: rows, empty: noneInFocus } = useMemo(
+    () => focus.narrow(every, (row) => anchorOf(row.entry, held), { noun: NOUN, keep: (row) => inHand(row.entry.path, pointedAt, menuOn) }),
+    [focus, every, held, pointedAt, menuOn],
+  )
 
   const actions: RowActions = useMemo(
     () => ({
@@ -289,7 +307,7 @@ export function App() {
     observer.observe(element)
     setHeight(element.clientHeight)
     return () => observer.disconnect()
-  }, [where, trouble, projectPath])
+  }, [where, trouble, projectPath, rows.length === 0])
 
   const virtual = useVirtualizer({
     count: rows.length,
@@ -368,8 +386,11 @@ export function App() {
        `readdir` and it is done in single-digit milliseconds; anything drawn here
        is a flash the person reads as a fault. */
     <div className="p-3" data-testid="reading" />
-  ) : !rows.length ? (
+  ) : !every.length ? (
     <Empty />
+  ) : !rows.length ? (
+    /* The pick left no row. One sentence where the rows were, and nothing else about the pick anywhere. */
+    <NoneInFocus said={noneInFocus} />
   ) : (
     <div className="flex h-full min-w-0 flex-col">
       {/*
