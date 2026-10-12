@@ -33,16 +33,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Which directories this app may be pointed at, or none, meaning any.
+# Which directories this app may be pointed at, when an operator wants to say.
 #
-# Colon-separated, absolute paths only. Unset is the default and it is an honest
-# default rather than a lax one: the root arrives in `context.projectPath` from
-# the host, and a module that refused the project the host just opened would be
-# a container permanently saying no to the only question it is asked.
+# Colon-separated, absolute paths only. Unset is the default: the root arrives
+# in `context.projectPath` from the host, the page sends it with this process's
+# ticket, and a project the page has named is what the app serves. Never the
+# disk's root or a home folder.
 #
-# Set it, and a request naming a root outside every configured directory is
-# refused — which turns "the caller picks the root" into "the caller picks among
-# the directories the operator allowed". The essay on `rootOf` in
+# Set it, and the list is the rule instead: a root inside one of the directories
+# is served and anything else is refused. The essay on `rootOf` in
 # `tree/confine.ts` says exactly what each state does and does not promise.
 #
 # What it never affects is the OTHER fence, which is unconditional: whatever the

@@ -172,10 +172,13 @@ in the workspace.
 - Every refusal is the same refusal. "Outside the root", "does not exist" and
   "cannot be read" come back as one word, because three distinguishable answers
   is an oracle a caller can use to ask whether a file it may not see exists.
-- The root comes from `context.projectPath`, which the host broadcasts. Set
-  `EXPLORER_ROOTS` to a colon-separated list of absolute directories to bound
-  which roots this will accept at all; unset means it explores whatever the host
-  names, which is the same posture every module here has.
+- The root comes from `context.projectPath`, which the host broadcasts. The page
+  sends it with the ticket this process printed into it, and a project the page
+  has named is what the MCP door then lists; a project nobody has opened the
+  Explorer on is not listed for an agent. The disk's root and a home folder are
+  never a root. Set `EXPLORER_ROOTS` to a colon-separated list of absolute
+  directories and that list is the rule instead: a root inside one of them is
+  served, to the page and to an agent, and nothing else is.
 - `storage: true` and no `server.cors`. Opaque, this page's fetches to its own
   `/api` would be cross-origin and would need permissive CORS — and permissive
   CORS on this port is a filesystem enumeration oracle reachable from any tab.

@@ -1,5 +1,6 @@
-import { realpathSync } from 'node:fs'
-import { isAbsolute, resolve, sep } from 'node:path'
+import { realpathSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, isAbsolute, resolve, sep } from 'node:path'
 
 /**
  * The fence, and the only place in this program that decides whether a path may
@@ -103,53 +104,110 @@ function real(path: string): string | null {
  * ## The root does not come from a request, and yet it arrives in one
  *
  * The rule this module is built to keep is that the project root comes from the
- * host's context rather than from a parameter a page chose. That is true of
+ * host's context rather than from a parameter a caller chose. That is true of
  * where the value ORIGINATES — `context.projectPath`, sent by the host to every
  * framed module — and it cannot be true of how it travels, because this server
  * is not on the canvas and is never handed a context. The page reads
  * `projectPath` off the wire and sends it with each read; an agent at `/mcp`
- * types it. From the server's side both are strings in a request, and pretending
- * otherwise would be a comment that lies.
+ * types it. From the server's side both are strings in a request.
  *
- * So the guarantee this program can actually keep is stated in two halves, and
- * both are enforced:
+ * So the two callers are told apart by what they can show:
  *
- *   1. **Relative confinement, always.** Whatever the root is, no `path` in a
- *      request can leave it. That is `inside()` above and it is unconditional.
- *   2. **Absolute confinement, when somebody configures it.** `EXPLORER_ROOTS`
- *      is a colon-separated list of absolute directories. Set it, and a root
- *      outside every one of them is refused — which turns "the caller picks the
- *      root" into "the caller picks among the roots the operator allowed".
+ *   - **The page** carries the ticket this process printed into it, and what it
+ *     names is what the host put it in. A project the page names is served, and
+ *     remembered for as long as this process lives.
+ *   - **An agent** has no ticket, so it is served only a project this app
+ *     already knows: one its own page has named since this process started.
  *
- * Unset is the default and it is honest about what it is: this app will explore
- * whatever directory it is pointed at by whoever can reach the port, and the
- * fence around that is loopback and the browser's same-origin policy — see the
- * storage essay in `manifest.ts`. That is the same posture every module here
- * has, and naming it beats a check that looks like a fence and is a suggestion.
+ * That is the honest extent of what a module server can know about "the
+ * projects the app has open". A `.kehikot` folder does not say it: a project
+ * that was just added has none, and one can be made, or arrive in a clone, in a
+ * folder nobody opened.
  *
- * What is refused in every configuration: a relative root, an empty root, and a
- * root this process cannot realpath. A relative root would resolve against this
- * module's own directory and quietly serve a tree of the explorer's source to
- * somebody who thought they were asking about their project.
+ * ## Never the whole disk, never a home folder
+ *
+ * `/`, the home folder, and anything above it are refused as a root whoever
+ * names them. A project is a folder inside those, and a tree of everything a
+ * person has is not an answer to a question about one project.
+ *
+ * ## `EXPLORER_ROOTS`, when an operator sets it
+ *
+ * A colon-separated list of absolute directories. Set, it is the whole rule: a
+ * root is served when it is inside one of them and refused when it is not, for
+ * the page and an agent alike. The operator named those directories; nothing
+ * above is consulted.
+ *
+ * What is refused in every configuration: a relative root, an empty root, a
+ * root this process cannot realpath, and one that is not a directory. A relative
+ * root would resolve against this module's own directory and quietly serve a
+ * tree of the explorer's source to somebody who thought they were asking about
+ * their project.
  */
-export function rootOf(asked: string | null | undefined): string | null {
+export function rootOf(asked: string | null | undefined, by: 'page' | 'agent' = 'agent'): string | null {
   if (!asked || !isAbsolute(asked)) return null
   const realRoot = real(resolve(asked))
-  if (realRoot === null) return null
+  if (realRoot === null || !isDirectory(realRoot)) return null
 
-  const allowed = (process.env.EXPLORER_ROOTS ?? '')
+  const allowed = configuredRoots()
+  if (allowed.length) {
+    for (const one of allowed) {
+      if (!isAbsolute(one)) continue
+      const realAllowed = real(one)
+      /* Each configured root is realpath'd and compared on its own, never merged
+         into a union of prefixes. Two roots checked as a set is how `../` climbs
+         out of one and lands inside the other. */
+      if (realAllowed !== null && contains(realAllowed, realRoot)) return realRoot
+    }
+    return null
+  }
+
+  if (tooWide(realRoot)) return null
+  if (by === 'page') {
+    remember(realRoot)
+    return realRoot
+  }
+  return known.has(realRoot) ? realRoot : null
+}
+
+/** The directories an operator listed, as written. Empty when none are. */
+export function configuredRoots(): string[] {
+  return (process.env.EXPLORER_ROOTS ?? '')
     .split(':')
     .map((one) => one.trim())
     .filter(Boolean)
-  if (!allowed.length) return realRoot
+}
 
-  for (const one of allowed) {
-    if (!isAbsolute(one)) continue
-    const realAllowed = real(one)
-    /* Each configured root is realpath'd and compared on its own, never merged
-       into a union of prefixes. Two roots checked as a set is how `../` climbs
-       out of one and lands inside the other. */
-    if (realAllowed !== null && contains(realAllowed, realRoot)) return realRoot
+/** How many projects are remembered. Far more than anybody has open; a bound on what a caller can make this hold. */
+const MAX_KNOWN = 64
+
+/** The projects this app's own page has named since this process started, oldest first. Real paths. */
+const known = new Set<string>()
+
+function remember(realRoot: string): void {
+  known.delete(realRoot)
+  known.add(realRoot)
+  while (known.size > MAX_KNOWN) known.delete(known.values().next().value as string)
+}
+
+/** For tests: forget every project the page has named. */
+export function forgetKnown(): void {
+  known.clear()
+}
+
+/**
+ * Is this the disk's root, the home folder, something above it, or another
+ * person's home beside it? `home` is a parameter so a test can say where home is.
+ */
+export function tooWide(realRoot: string, home: string = homedir()): boolean {
+  if (dirname(realRoot) === realRoot) return true
+  const realHome = real(home) ?? home
+  return contains(realRoot, realHome) || dirname(realRoot) === dirname(realHome)
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
   }
-  return null
 }
