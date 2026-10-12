@@ -1,9 +1,9 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 
-import { contains, inside, rootOf } from '../tree/confine.ts'
+import { contains, forgetKnown, inside, rootOf, tooWide } from '../tree/confine.ts'
 
 /**
  * Every way out of the root that this file's author could think of, tried.
@@ -182,20 +182,63 @@ describe('inside', () => {
 })
 
 describe('rootOf', () => {
-  test('an absolute directory is its own real path', () => {
+  beforeEach(() => forgetKnown())
+
+  test('a directory the page names is its own real path', () => {
+    expect(rootOf(root, 'page')).toBe(root)
+  })
+
+  test('an agent is served a project only once the page has named it', () => {
+    expect(rootOf(root)).toBeNull()
+    expect(rootOf(root, 'agent')).toBeNull()
+    expect(rootOf(root, 'page')).toBe(root)
     expect(rootOf(root)).toBe(root)
+    /* Its neighbours are not known for that, and nor is a folder inside it or above it. */
+    expect(rootOf(outside)).toBeNull()
+    expect(rootOf(evil)).toBeNull()
+    expect(rootOf(join(root, 'src'))).toBeNull()
+    expect(rootOf(scratch)).toBeNull()
+  })
+
+  test('a project is known by its real path, whichever way it was spelled', () => {
+    symlinkSync(root, join(scratch, 'spelled-otherwise'))
+    expect(rootOf(join(scratch, 'spelled-otherwise'), 'page')).toBe(root)
+    expect(rootOf(`${root}/`)).toBe(root)
+  })
+
+  test('the disk’s root, the home folder, what is above it and what is beside it are never a root', () => {
+    const home = join(scratch, 'users', 'somebody')
+    mkdirSync(join(home, 'Projects', 'thing'), { recursive: true })
+    mkdirSync(join(scratch, 'users', 'another'), { recursive: true })
+    expect(tooWide('/', home)).toBe(true)
+    expect(tooWide(home, home)).toBe(true)
+    expect(tooWide(join(scratch, 'users'), home)).toBe(true)
+    expect(tooWide(scratch, home)).toBe(true)
+    expect(tooWide(join(scratch, 'users', 'another'), home)).toBe(true)
+    expect(tooWide(join(home, 'Projects', 'thing'), home)).toBe(false)
+    expect(tooWide(join(home, 'Projects'), home)).toBe(false)
+    /* And as the doors meet it: the real home, whoever names it. */
+    for (const by of ['page', 'agent'] as const) {
+      expect(rootOf('/', by)).toBeNull()
+      expect(rootOf(homedir(), by)).toBeNull()
+      expect(rootOf(join(homedir(), '..'), by)).toBeNull()
+    }
   })
 
   test('a relative root is refused, so no tree of this module’s own source is ever served', () => {
-    expect(rootOf('tree')).toBeNull()
-    expect(rootOf('.')).toBeNull()
-    expect(rootOf('')).toBeNull()
-    expect(rootOf(null)).toBeNull()
-    expect(rootOf(undefined)).toBeNull()
+    for (const by of ['page', 'agent'] as const) {
+      expect(rootOf('tree', by)).toBeNull()
+      expect(rootOf('.', by)).toBeNull()
+      expect(rootOf('', by)).toBeNull()
+      expect(rootOf(null, by)).toBeNull()
+      expect(rootOf(undefined, by)).toBeNull()
+    }
   })
 
-  test('a root that does not exist is refused', () => {
-    expect(rootOf(join(scratch, 'no-such-project'))).toBeNull()
+  test('a root that does not exist, or is a file, is refused', () => {
+    expect(rootOf(join(scratch, 'no-such-project'), 'page')).toBeNull()
+    writeFileSync(join(scratch, 'a-file'), 'x')
+    expect(rootOf(join(scratch, 'a-file'), 'page')).toBeNull()
   })
 
   describe('with EXPLORER_ROOTS set', () => {
@@ -231,6 +274,17 @@ describe('rootOf', () => {
       expect(rootOf(root)).toBe(root)
       expect(rootOf(outside)).toBe(outside)
       expect(rootOf(evil)).toBeNull()
+      if (before === undefined) delete process.env.EXPLORER_ROOTS
+      else process.env.EXPLORER_ROOTS = before
+    })
+
+    test('the list is the whole rule: the page is bound by it too, and what it named before does not count', () => {
+      expect(rootOf(outside, 'page')).toBe(outside)
+      process.env.EXPLORER_ROOTS = root
+      expect(rootOf(outside, 'page')).toBeNull()
+      expect(rootOf(outside)).toBeNull()
+      expect(rootOf(root, 'page')).toBe(root)
+      expect(rootOf(join(root, 'src'))).toBe(join(root, 'src'))
       if (before === undefined) delete process.env.EXPLORER_ROOTS
       else process.env.EXPLORER_ROOTS = before
     })

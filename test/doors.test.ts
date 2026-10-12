@@ -1,12 +1,13 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { PACKAGE_VERSION } from 'kehikot-module-protocol'
 import { doorsHandler } from 'kehikot-module-protocol/serve'
 
-import { BUILD, MANIFEST, answer } from '../doors.ts'
+import { BUILD, MANIFEST, TICKET, answer } from '../doors.ts'
+import { forgetKnown } from '../tree/confine.ts'
 import { MAX_DEPTH } from '../tree/shape.ts'
 
 /**
@@ -27,8 +28,9 @@ writeFileSync(join(root, '.gitignore'), 'node_modules')
 writeFileSync(join(root, 'readme.md'), '#')
 writeFileSync(join(root, 'src', 'app.tsx'), 'x')
 
-const get = (path: string, query: Record<string, string> = {}) =>
-  answer('GET', path, new URLSearchParams(query), null)
+/* As this app's own page asks: with the ticket this process printed into it. */
+const get = (path: string, query: Record<string, string> = {}, ticket: string | null = TICKET) =>
+  answer('GET', path, new URLSearchParams(query), null, ticket)
 
 const rpc = (method: string, params?: Record<string, unknown>) =>
   answer('POST', '/mcp', new URLSearchParams(), { jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) })
@@ -82,6 +84,22 @@ describe('/healthz', () => {
 })
 
 describe('/api/tree', () => {
+  test('answers only this app’s own page: a read without its ticket is refused, and marked so', () => {
+    for (const carried of [null, '', 'not-the-ticket']) {
+      const reply = get('/api/tree', { projectPath: root }, carried)
+      expect(reply?.status).toBe(403)
+      expect((reply?.body as { refused?: string }).refused).toBe('ticket')
+    }
+  })
+
+  test('the disk’s root and a home folder are not shown as a project', () => {
+    for (const projectPath of ['/', homedir(), join(homedir(), '..')]) {
+      const reply = get('/api/tree', { projectPath })
+      expect([projectPath, reply?.status]).toEqual([projectPath, 400])
+      expect((reply?.body as { error: string }).error).toContain('not shown as a project')
+    }
+  })
+
   test('answers the root of a project', () => {
     const reply = get('/api/tree', { projectPath: root })
     const body = reply?.body as { ok: boolean; entries: { name: string }[] }
@@ -181,6 +199,38 @@ describe('/mcp', () => {
 
   describe('the tree tool', () => {
     const tree = (args: Record<string, unknown>) => toolText(rpc('tools/call', { name: 'tree', arguments: args }))
+
+    /* An agent is listed a project this app's own page has been opened on, so the page opens it first. */
+    beforeEach(() => {
+      forgetKnown()
+      get('/api/tree', { projectPath: root })
+    })
+
+    test('a project the page has not been opened on is not listed, and the refusal says what to do', () => {
+      forgetKnown()
+      const refused = tree({ projectPath: root })
+      expect(refused.isError).toBe(true)
+      expect(refused.text).toContain('open in the host with the Explorer on its canvas')
+      expect(refused.text).not.toContain('readme.md')
+      /* A read that did not carry the page's ticket does not make it known. */
+      get('/api/tree', { projectPath: root }, 'not-the-ticket')
+      expect(tree({ projectPath: root }).isError).toBe(true)
+      get('/api/tree', { projectPath: root })
+      expect(tree({ projectPath: root }).isError).toBe(false)
+    })
+
+    test('the disk’s root, a home folder and a folder nobody opened are refused alike', () => {
+      const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'explorer-elsewhere-')))
+      try {
+        for (const projectPath of ['/', '/etc', homedir(), elsewhere]) {
+          const { text, isError } = tree({ projectPath })
+          expect([projectPath, isError]).toEqual([projectPath, true])
+          expect(text).toContain('projectPath')
+        }
+      } finally {
+        rmSync(elsewhere, { recursive: true, force: true })
+      }
+    })
 
     test('reads one level by default', () => {
       const { text, isError } = tree({ projectPath: root })

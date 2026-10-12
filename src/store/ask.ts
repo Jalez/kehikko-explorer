@@ -32,8 +32,9 @@ export type Answer =
 export async function readDir(projectPath: string, path: string, signal: AbortSignal): Promise<Answer> {
   /* The protocol's `ask`: one typed result for every failure, and the page's standing with its own
      server kept up to date as a side effect — which is what draws the "not answering" cover and
-     reloads a page that is older than its server. */
-  const asked = await ask<Answer>('./api/tree', { query: { projectPath, path: path || null }, signal })
+     reloads a page that is older than its server. The read carries the ticket printed into this
+     page: it is how the server knows the project named here is the one a host put this page in. */
+  const asked = await ask<Answer>('./api/tree', { query: { projectPath, path: path || null }, signal, ticket: true })
   /*
    * An abort is not a failure and must not be drawn as one.
    *

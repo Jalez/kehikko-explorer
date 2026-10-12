@@ -1,7 +1,7 @@
-import { rootOf } from './tree/confine.ts'
+import { configuredRoots, rootOf } from './tree/confine.ts'
 import { list, walk } from './tree/read.ts'
 import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
-import { establishBuild } from 'kehikot-module-protocol/serve'
+import { establishBuild, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 
@@ -11,6 +11,9 @@ import { ID, MANIFEST, VERSION } from './manifest.ts'
  * across a restart finds out it is older than its server, and reloads.
  */
 export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
+
+/** Minted per process and printed into `/app` by `doors()`, so only this app's own page holds it. */
+export const TICKET = mintTicket()
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -31,19 +34,14 @@ export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname
  * returns a status and a document, and `vite.config.ts` adapts a node request
  * to it in a dozen lines.
  *
- * ## There is no ticket here, and the absence is the point
+ * ## The page's door asks for the page's ticket
  *
- * The sibling modules that hold material mint a per-process ticket, print it
- * into their page, and gate every write on it. This module has no writes to
- * gate — see the bound in `manifest.ts` — so a ticket would be a credential
- * protecting nothing, and a credential that protects nothing is a thing the
- * next person adds a write behind.
- *
- * What is left is reads, and what protects those is `storage: true` plus the
- * absence of `server.cors`: with a real origin, this page's fetches are
- * same-origin, no CORS header is offered to anybody, and a page on another
- * origin gets nothing back from this port. That is the same protection the
- * ticketed modules rely on for their own page; here it is the whole of it.
+ * There are no writes here — see the bound in `manifest.ts` — and the ticket is
+ * not for one. It is how this server tells its own page from every other
+ * caller: the page is framed by a host and names the project that host put it
+ * in, and a project the page has named is the only kind an agent is then
+ * served (`rootOf` in `tree/confine.ts`). `/mcp` asks for none, because an agent
+ * has no page to have been handed one by.
  *
  * ## Nothing here trusts its caller
  *
@@ -77,9 +75,14 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
 const NO_ROOT_PAGE =
   'Nothing has said which project is open, so there is no tree to show.'
 const NO_ROOT_AGENT =
-  'That did not say which project, or named one this app may not read. Send projectPath as an absolute directory. '
-  + 'This app will not guess: the only folder it could pick is its own, and a tree of the explorer’s source is not '
-  + 'an answer to a question about your project.'
+  'That did not say which project, or named one this app does not read. Send projectPath as the absolute directory '
+  + 'of a project that is open in the host with the Explorer on its canvas: this app lists a project once its own '
+  + 'page has been opened on it (or one inside the directories its operator listed), and never a home folder or a '
+  + 'whole disk as such. This app will not guess: the only folder it could pick is its own, and a tree of the '
+  + 'explorer’s source is not an answer to a question about your project.'
+const NOT_A_PROJECT_PAGE =
+  'That folder is not shown as a project. This app lists a project folder — never a home folder or a whole disk as '
+  + 'such — and, when its operator has listed directories, only what is inside them.'
 
 /* ------------------------------------------------------------------ *
  * The MCP door
@@ -300,7 +303,13 @@ function mcp(rpc: Rpc): Reply {
  * which is how the page, the client module and Vite's own hot-reload socket
  * keep working without being enumerated here.
  */
-export function answer(method: string, path: string, query: URLSearchParams, body: Record<string, unknown> | null): Reply | null {
+export function answer(
+  method: string,
+  path: string,
+  query: URLSearchParams,
+  body: Record<string, unknown> | null,
+  ticket: string | null = null,
+): Reply | null {
   /*
    * The health check, which reports what this app IS rather than what it holds.
    *
@@ -312,12 +321,12 @@ export function answer(method: string, path: string, query: URLSearchParams, bod
    * are set to would make it a reconnaissance endpoint.
    */
   if (path === '/healthz') {
-    const configured = (process.env.EXPLORER_ROOTS ?? '').split(':').filter((one) => one.trim()).length
+    const configured = configuredRoots().length
     return ok({
       ok: true,
       id: ID,
       version: VERSION,
-      roots: configured === 0 ? 'whatever the host names' : `${configured} configured`,
+      roots: configured === 0 ? 'the projects this app’s own page has been opened on' : `${configured} configured`,
       writes: 'none — this module reads directory entries and nothing else',
     })
   }
@@ -344,8 +353,13 @@ export function answer(method: string, path: string, query: URLSearchParams, bod
    * about the project, and there is no other thing it could mean.
    */
   if (path === '/api/tree' && method === 'GET') {
-    const root = rootOf(str(query.get('projectPath'), MAX_PATH))
-    if (!root) return bad(NO_ROOT_PAGE)
+    /* Marked as a ticket refusal, so a page older than this server knows to reload itself. */
+    const stranger = refuseTicket(ticket, TICKET, 'That was not asked by this app’s own page.')
+    if (stranger) return stranger
+    const named = str(query.get('projectPath'), MAX_PATH)
+    if (!named) return bad(NO_ROOT_PAGE)
+    const root = rootOf(named, 'page')
+    if (!root) return bad(NOT_A_PROJECT_PAGE)
     const at = str(query.get('path'), MAX_PATH)
     const one = list(root, at)
     if (!one.ok) return bad(one.error, 404)
