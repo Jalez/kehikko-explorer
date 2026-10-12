@@ -198,9 +198,13 @@ export const MANIFEST: Manifest = manifestSchema.parse({
    * `reacts` in the protocol's `manifest.ts`, which refuses that temptation at
    * length and has a test whose only job is to fail if anybody yields to it.
    */
-  reacts: ['passage'],
-  /* Why this module has nothing to narrow by the parts of an epic. */
-  partless: "Lists the project's own files; a part owns files of the paper, not of the repository.",
+  /*
+   * And it follows the parts of the epic: a part lists documents, relative to
+   * the project, and every row here is one. With parts picked the tree is the
+   * files they list and the folders those are in; `src/focus.ts` is the whole
+   * of it.
+   */
+  reacts: ['passage', 'parts'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['passage:set'],
