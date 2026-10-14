@@ -204,7 +204,7 @@ answer, in the same words the person sees, from the same code path.
 ```
 $ curl -s -X POST http://127.0.0.1:7970/mcp -H 'content-type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":
-        {"name":"tree","arguments":{"projectPath":"/path/to/project","depth":2}}}'
+        {"name":"tree","arguments":{"project":"/path/to/project","depth":2}}}'
 ```
 
 Depth defaults to 1 and is capped; ignored directories are listed and never

@@ -1,6 +1,7 @@
 import { configuredRoots, rootOf } from './tree/confine.ts'
 import { list, walk } from './tree/read.ts'
 import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
+import { doorContext } from 'kehikot-module-protocol'
 import { establishBuild, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
@@ -75,7 +76,7 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
 const NO_ROOT_PAGE =
   'Nothing has said which project is open, so there is no tree to show.'
 const NO_ROOT_AGENT =
-  'That did not say which project, or named one this app does not read. Send projectPath as the absolute directory '
+  'That did not say which project, or named one this app does not read. Send project as the absolute directory '
   + 'of a project that is open in the host with the Explorer on its canvas: this app lists a project once its own '
   + 'page has been opened on it (or one inside the directories its operator listed), and never a home folder or a '
   + 'whole disk as such. This app will not guess: the only folder it could pick is its own, and a tree of the '
@@ -114,7 +115,7 @@ function tools() {
       inputSchema: {
         type: 'object',
         properties: {
-          projectPath: {
+          project: {
             type: 'string',
             description:
               'The absolute directory of the project to look at. Required. This is the root, and nothing outside it '
@@ -139,8 +140,10 @@ function tools() {
               + 'whatever this says — that is what keeps node_modules out of the answer.',
           },
         },
-        required: ['projectPath'],
+        required: ['project'],
       },
+      /* It lists names on disk and changes nothing: no file is opened, written or removed. */
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   ]
 }
@@ -219,7 +222,8 @@ function treeText(entries: Entry[], root: string, at: string, cut: boolean): str
 function call(name: string, args: Record<string, unknown>): string {
   if (name !== 'tree') throw new Error(`no tool "${name.slice(0, 60)}" here`)
 
-  const root = rootOf(str(args.projectPath, MAX_PATH))
+  /* `project`, or `projectPath`, the name this door used before the protocol agreed one. */
+  const root = rootOf(str(doorContext(args).project, MAX_PATH))
   if (!root) throw new Error(NO_ROOT_AGENT)
 
   const at = str(args.path, MAX_PATH)
