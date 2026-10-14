@@ -4,6 +4,7 @@ import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
 import { doorContext } from 'kehikot-module-protocol'
 import { establishBuild, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
 
+import { hostAllows } from './host-ask.ts'
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 
 /**
@@ -84,6 +85,18 @@ const NO_ROOT_AGENT =
 const NOT_A_PROJECT_PAGE =
   'That folder is not shown as a project. This app lists a project folder — never a home folder or a whole disk as '
   + 'such — and, when its operator has listed directories, only what is inside them.'
+
+/**
+ * Whether the host holds a folder as a project (protocol 1.4.0, `hostHasProject`). Asked in this
+ * server before any folder a request names is read: a page's word is not the host's. A host that
+ * says no, and no host answering at all, read nothing; a host from before 0.1.19, which answers
+ * but has no such route, leaves the roots check alone to decide, as it did (`host-ask.ts`).
+ * `setHostAsk` is for tests.
+ */
+let hostAsk: (folder: string) => Promise<boolean> = (folder) => hostAllows(folder)
+export function setHostAsk(ask: ((folder: string) => Promise<boolean>) | null): void {
+  hostAsk = ask ?? ((folder) => hostAllows(folder))
+}
 
 /* ------------------------------------------------------------------ *
  * The MCP door
@@ -219,12 +232,14 @@ function treeText(entries: Entry[], root: string, at: string, cut: boolean): str
   return lines.join('\n')
 }
 
-function call(name: string, args: Record<string, unknown>): string {
+async function call(name: string, args: Record<string, unknown>): Promise<string> {
   if (name !== 'tree') throw new Error(`no tool "${name.slice(0, 60)}" here`)
 
   /* `project`, or `projectPath`, the name this door used before the protocol agreed one. */
-  const root = rootOf(str(doorContext(args).project, MAX_PATH))
+  const named = str(doorContext(args).project, MAX_PATH)
+  const root = rootOf(named)
   if (!root) throw new Error(NO_ROOT_AGENT)
+  if (!(await hostAsk(named!))) throw new Error(NO_ROOT_AGENT)
 
   const at = str(args.path, MAX_PATH)
   /*
@@ -256,7 +271,7 @@ interface Rpc {
   params?: { name?: string; arguments?: Record<string, unknown> }
 }
 
-function mcp(rpc: Rpc): Reply {
+async function mcp(rpc: Rpc): Promise<Reply> {
   const reply = (result: unknown) => ok({ jsonrpc: '2.0', id: rpc.id ?? null, result })
   const text = (s: string, isError = false) =>
     reply({ content: [{ type: 'text', text: s }], ...(isError ? { isError } : {}) })
@@ -283,7 +298,7 @@ function mcp(rpc: Rpc): Reply {
     const name = String(rpc.params?.name ?? '')
     const args = (rpc.params?.arguments ?? {}) as Record<string, unknown>
     try {
-      return text(call(name, args))
+      return text(await call(name, args))
     } catch (e) {
       /* A refusal is an answer, and the sentence is the useful half — every one
          of them names what to do instead. So it comes back as a tool error the
@@ -307,13 +322,13 @@ function mcp(rpc: Rpc): Reply {
  * which is how the page, the client module and Vite's own hot-reload socket
  * keep working without being enumerated here.
  */
-export function answer(
+export async function answer(
   method: string,
   path: string,
   query: URLSearchParams,
   body: Record<string, unknown> | null,
   ticket: string | null = null,
-): Reply | null {
+): Promise<Reply | null> {
   /*
    * The health check, which reports what this app IS rather than what it holds.
    *
@@ -364,6 +379,7 @@ export function answer(
     if (!named) return bad(NO_ROOT_PAGE)
     const root = rootOf(named, 'page')
     if (!root) return bad(NOT_A_PROJECT_PAGE)
+    if (!(await hostAsk(named))) return bad(NOT_A_PROJECT_PAGE)
     const at = str(query.get('path'), MAX_PATH)
     const one = list(root, at)
     if (!one.ok) return bad(one.error, 404)
