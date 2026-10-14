@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { PACKAGE_VERSION } from 'kehikot-module-protocol'
+import { PACKAGE_VERSION, toolEffect } from 'kehikot-module-protocol'
 import { doorsHandler } from 'kehikot-module-protocol/serve'
 
 import { BUILD, MANIFEST, TICKET, answer } from '../doors.ts'
@@ -197,6 +197,15 @@ describe('/mcp', () => {
     expect(body.result.tools.map((one) => one.name)).toEqual(['tree'])
   })
 
+  test('the tree tool says it only reads, and takes the project as `project`', () => {
+    const body = rpc('tools/list')?.body as { result: { tools: { name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean }; inputSchema: { properties: Record<string, unknown>; required: string[] } }[] } }
+    const [tool] = body.result.tools
+    expect(toolEffect(tool!)).toBe('reads')
+    expect(Object.keys(tool!.inputSchema.properties)).toContain('project')
+    expect(Object.keys(tool!.inputSchema.properties)).not.toContain('projectPath')
+    expect(tool!.inputSchema.required).toEqual(['project'])
+  })
+
   describe('the tree tool', () => {
     const tree = (args: Record<string, unknown>) => toolText(rpc('tools/call', { name: 'tree', arguments: args }))
 
@@ -225,7 +234,7 @@ describe('/mcp', () => {
         for (const projectPath of ['/', '/etc', homedir(), elsewhere]) {
           const { text, isError } = tree({ projectPath })
           expect([projectPath, isError]).toEqual([projectPath, true])
-          expect(text).toContain('projectPath')
+          expect(text).toContain('Send project as')
         }
       } finally {
         rmSync(elsewhere, { recursive: true, force: true })
@@ -274,10 +283,18 @@ describe('/mcp', () => {
       expect(readme).toBeGreaterThan(app)
     })
 
+    test('`project` is read, and so is `projectPath`, the name this door had before', () => {
+      const now = tree({ project: root })
+      const before = tree({ projectPath: root })
+      expect([now.isError, before.isError]).toEqual([false, false])
+      expect(now.text).toContain('readme.md')
+      expect(before.text).toBe(now.text)
+    })
+
     test('a missing project is a tool error naming the argument to send', () => {
       const { text, isError } = tree({})
       expect(isError).toBe(true)
-      expect(text).toContain('projectPath')
+      expect(text).toContain('Send project as')
     })
 
     /*

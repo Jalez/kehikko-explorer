@@ -1,4 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
+import type { HeaderItemInput } from 'kehikot-module-protocol'
 import type { HostEvents } from 'kehikot-module-protocol/client'
 import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -8,7 +9,7 @@ import { flatten } from '../tree/flatten.ts'
 import { absoluteOf, rootOf } from '../tree/paths.ts'
 
 import type { Copied } from '@/lib/copy.ts'
-import { Button } from '@/components/ui/button.tsx'
+import { HeaderFallback, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { NOUN, anchorOf, heldBy, inHand } from '@/focus.ts'
 import { keepView, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
@@ -31,8 +32,11 @@ type GotoHandler = NonNullable<HostEvents['onGoto']>
  * reason `PAGE_HEAD` in `vite.config.ts` makes the body a fixed-height non-scrolling box.
  */
 const MOST_WE_WILL_ASK_FOR = 420
-/** The control row at the bottom, which is 24 tall plus its border and padding. */
-const CHROME = 28
+/** What the frame has besides the rows: nothing. Refresh is in the header's Run menu, so there is no control row. */
+const CHROME = 0
+
+/** What this page declares for the container's header: one run, and it never changes. */
+const HEADER: HeaderItemInput[] = [{ kind: 'run', id: 'refresh', label: 'Refresh the tree', icon: 'refresh-cw', agents: true }]
 
 /**
  * The page.
@@ -125,10 +129,27 @@ export function App() {
   }, [])
 
   /* The protocol's host hook: where the page stands, the theme on `<html>`, the flattened context. */
-  const { where, projectPath, passage, parts, epic, resize, point } = useHost(ID, { onGoto })
+  const refreshing = useRef<() => void>(() => {})
+  /* Whether a host has ever pressed a header item: such a host draws the header, and this page draws none of its own. */
+  const [drawn, setDrawn] = useState(headerDrawn)
+  const onPress = useCallback<NonNullable<HostEvents['onPress']>>(({ item }) => {
+    rememberHeaderDrawn()
+    setDrawn(true)
+    if (item !== 'refresh') return 'That is not something this page has.'
+    refreshing.current()
+    return true
+  }, [])
+  const { where, projectPath, passage, parts, epic, resize, point, header } = useHost(ID, { onGoto, onPress })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
+  refreshing.current = refresh
+  /* Declared once the page has a tree to refresh, and taken away with the project. */
+  const offered = where === 'hosted' && Boolean(projectPath)
+  useEffect(() => {
+    header(offered ? HEADER : [])
+    return () => header([])
+  }, [header, offered])
 
   /*
    * Nothing is offered to `kehikot.filters`, and that is a decision this file
@@ -392,7 +413,9 @@ export function App() {
     /* The pick left no row. One sentence where the rows were, and nothing else about the pick anywhere. */
     <NoneInFocus said={noneInFocus} />
   ) : (
-    <div className="flex h-full min-w-0 flex-col">
+    <div className="relative flex h-full min-w-0 flex-col">
+      {/* The page's own way to the header's items, only where no host draws them. */}
+      {offered && !drawn ? <HeaderFallback items={HEADER} onPress={(press) => onPress(press)} className="absolute top-0.5 right-2" /> : null}
       {/*
        * The scroll container, and the only thing on this page that scrolls.
        *
@@ -482,11 +505,6 @@ export function App() {
         </p>
       ) : null}
 
-      <div className="flex min-w-0 shrink-0 items-center gap-1 border-t px-1 py-0.5">
-        <Button size="container" variant="ghost" data-testid="refresh" onClick={refresh}>
-          refresh
-        </Button>
-      </div>
 
       {/*
        * The menu, drawn last and positioned against the frame's viewport rather

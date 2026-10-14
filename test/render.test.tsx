@@ -231,12 +231,27 @@ describe('the not-ready moments, each as the one shared cover', () => {
     })
   }
   const cover = () => document.querySelector('[data-cover]')
+  /* What the page said to its host, as the host would hear it: the header, and the answer to a press. */
+  let heard: { type: string; items?: { id: string; kind: string; agents?: boolean }[]; id?: string; ok?: boolean; why?: string }[] = []
+  const listen = (event: MessageEvent) => {
+    const data = event.data as { type?: string } | null
+    if (data && (data.type === 'kehikot.header' || data.type === 'kehikot.pressed')) heard.push(data as (typeof heard)[number])
+  }
+  const press = async (item: string, id = 'p1') => {
+    await act(async () => {
+      window.postMessage({ type: 'kehikot.press', protocol: 2, id, item }, '*')
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+  }
+  const declared = () => heard.filter((one) => one.type === 'kehikot.header')
   const settle = (ms: number) => act(async () => void (await new Promise((resolve) => setTimeout(resolve, ms))))
 
   beforeEach(() => {
     down = false
     refuse = null
     asked = []
+    heard = []
+    window.addEventListener('message', listen)
     resetServerStanding()
     globalThis.fetch = (async (url: unknown) => {
       asked.push(String(url))
@@ -247,6 +262,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
   })
   afterEach(() => {
     cleanup()
+    window.removeEventListener('message', listen)
     globalThis.fetch = realFetch
     document.documentElement.className = ''
   })
@@ -310,9 +326,8 @@ describe('the not-ready moments, each as the one shared cover', () => {
     const scroller = screen.getByTestId('scroller')
     down = true
     await act(async () => {
-      fireEvent.click(screen.getByTestId('refresh'))
-      await new Promise((resolve) => setTimeout(resolve, 30))
     })
+    await press('refresh')
     expect(cover()?.getAttribute('data-cover')).toBe('down')
     /* The same element, hidden: what was open and where it was scrolled to are still there. */
     expect(screen.getByTestId('scroller')).toBe(scroller)
@@ -325,6 +340,47 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(cover()).toBeNull()
     expect(screen.getByTestId('scroller')).toBe(scroller)
     expect(scroller.closest('[hidden]')).toBeNull()
+  })
+
+  test('the header is one Run item, Refresh; a press reads the root again, and there is no row of its own', async () => {
+    render(<App />)
+    await greet({ project: 'p', projectPath: '/tmp/p' })
+    expect(screen.queryByTestId('refresh')).toBeNull()
+    expect(declared().at(-1)?.items).toMatchObject([{ kind: 'run', id: 'refresh', agents: true }])
+    const before = asked.length
+    await press('refresh')
+    expect(asked.length).toBeGreaterThan(before)
+    expect(heard.filter((one) => one.type === 'kehikot.pressed').at(-1)).toMatchObject({ id: 'p1', ok: true })
+  })
+
+  test('an item it has not got is not taken', async () => {
+    render(<App />)
+    await greet({ project: 'p', projectPath: '/tmp/p' })
+    await press('nothing-like-this', 'p2')
+    expect(heard.filter((one) => one.type === 'kehikot.pressed').at(-1)).toMatchObject({ id: 'p2', ok: false })
+  })
+
+  test('idle, or a refresh, declares nothing again', async () => {
+    render(<App />)
+    await greet({ project: 'p', projectPath: '/tmp/p' })
+    const count = declared().length
+    expect(count).toBeGreaterThan(0)
+    /* Idle, and a tree being read again: the list is the same list, so nothing is said. */
+    await settle(250)
+    await press('refresh')
+    await settle(250)
+    expect(declared().length).toBe(count)
+  })
+
+  test('a host that has pressed one draws the header, so the page draws none; until then it has its own control', async () => {
+    localStorage.removeItem('kehikot.explorer.header-drawn')
+    render(<App />)
+    await greet({ project: 'p', projectPath: '/tmp/p' })
+    expect(document.querySelector('[data-header-fallback]')).not.toBeNull()
+    await press('refresh')
+    expect(document.querySelector('[data-header-fallback]')).toBeNull()
+    expect(localStorage.getItem('kehikot.explorer.header-drawn')).toBe('yes')
+    localStorage.removeItem('kehikot.explorer.header-drawn')
   })
 
   test('a root the server refuses is the server’s own sentence, not a cover', async () => {
