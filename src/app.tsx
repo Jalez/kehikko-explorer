@@ -9,7 +9,7 @@ import { flatten } from '../tree/flatten.ts'
 import { absoluteOf, rootOf } from '../tree/paths.ts'
 
 import type { Copied } from '@/lib/copy.ts'
-import { HeaderFallback, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
+import { fallbackShows, HeaderFallback, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { NOUN, anchorOf, heldBy, inHand } from '@/focus.ts'
 import { keepView, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
@@ -130,7 +130,7 @@ export function App() {
 
   /* The protocol's host hook: where the page stands, the theme on `<html>`, the flattened context. */
   const refreshing = useRef<() => void>(() => {})
-  /* Whether a host has ever pressed a header item: such a host draws the header, and this page draws none of its own. */
+  /* Whether a host has ever pressed a header item: with an older host (no `drawsHeader`) that is the only sign it draws the header. */
   const [drawn, setDrawn] = useState(headerDrawn)
   const onPress = useCallback<NonNullable<HostEvents['onPress']>>(({ item }) => {
     rememberHeaderDrawn()
@@ -139,7 +139,7 @@ export function App() {
     refreshing.current()
     return true
   }, [])
-  const { where, projectPath, passage, parts, epic, resize, point, header } = useHost(ID, { onGoto, onPress })
+  const { where, projectPath, passage, parts, epic, resize, point, header, drawsHeader } = useHost(ID, { onGoto, onPress })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
@@ -415,7 +415,7 @@ export function App() {
   ) : (
     <div className="relative flex h-full min-w-0 flex-col">
       {/* The page's own way to the header's items, only where no host draws them. */}
-      {offered && !drawn ? <HeaderFallback items={HEADER} onPress={(press) => onPress(press)} className="absolute top-0.5 right-2" /> : null}
+      {offered && fallbackShows(where, drawsHeader, drawn) ? <HeaderFallback items={HEADER} onPress={(press) => onPress(press)} className="absolute top-0.5 right-2" /> : null}
       {/*
        * The scroll container, and the only thing on this page that scrolls.
        *
