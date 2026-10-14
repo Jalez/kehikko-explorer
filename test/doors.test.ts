@@ -8,7 +8,7 @@ import { doorsHandler } from 'kehikot-module-protocol/serve'
 
 import { BUILD, MANIFEST, TICKET, answer, setHostAsk } from '../doors.ts'
 import { forgetKnown } from '../tree/confine.ts'
-import { hostHasProject } from 'kehikot-module-protocol/serve'
+import { hostAllows } from '../host-ask.ts'
 import { MAX_DEPTH } from '../tree/shape.ts'
 
 /**
@@ -430,7 +430,7 @@ describe('the host holds the folder (protocol 1.4.0)', () => {
   })
 
   test('no host answering is a refusal too: it fails closed', async () => {
-    setHostAsk((folder) => hostHasProject(folder, { fetch: (async () => { throw new Error('nobody is listening') }) as unknown as typeof fetch }))
+    setHostAsk((folder) => hostAllows(folder, { env: { KEHIKOT_ORIGINS: 'http://127.0.0.1:9' }, fetch: (async () => { throw new Error('nobody is listening') }) as unknown as typeof fetch }))
     expect((await get('/api/tree', { projectPath: root }))?.status).toBe(400)
   })
 

@@ -2,8 +2,9 @@ import { configuredRoots, rootOf } from './tree/confine.ts'
 import { list, walk } from './tree/read.ts'
 import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
 import { doorContext } from 'kehikot-module-protocol'
-import { establishBuild, hostHasProject, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
+import { establishBuild, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
 
+import { hostAllows } from './host-ask.ts'
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 
 /**
@@ -87,13 +88,14 @@ const NOT_A_PROJECT_PAGE =
 
 /**
  * Whether the host holds a folder as a project (protocol 1.4.0, `hostHasProject`). Asked in this
- * server before any folder a request names is read: a page's word is not the host's. It fails
- * closed, so a module with no host answering reads nothing, which is how a stand-alone page
- * already behaves ("Nothing is framing this page"). `setHostAsk` is for tests.
+ * server before any folder a request names is read: a page's word is not the host's. A host that
+ * says no, and no host answering at all, read nothing; a host from before 0.1.19, which answers
+ * but has no such route, leaves the roots check alone to decide, as it did (`host-ask.ts`).
+ * `setHostAsk` is for tests.
  */
-let hostAsk: (folder: string) => Promise<boolean> = (folder) => hostHasProject(folder)
+let hostAsk: (folder: string) => Promise<boolean> = (folder) => hostAllows(folder)
 export function setHostAsk(ask: ((folder: string) => Promise<boolean>) | null): void {
-  hostAsk = ask ?? ((folder) => hostHasProject(folder))
+  hostAsk = ask ?? ((folder) => hostAllows(folder))
 }
 
 /* ------------------------------------------------------------------ *
