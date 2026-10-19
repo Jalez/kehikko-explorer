@@ -11,7 +11,7 @@ import { absoluteOf, rootOf } from '../tree/paths.ts'
 import type { Copied } from '@/lib/copy.ts'
 import { fallbackShows, HeaderFallback, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { NOUN, anchorOf, heldBy, inHand } from '@/focus.ts'
-import { keepView, viewOf } from '@/store/view.ts'
+import { keepView, scopeOf, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
 import { Empty, NoneInFocus, Trouble } from '@/view/screens.tsx'
@@ -139,10 +139,10 @@ export function App() {
     refreshing.current()
     return true
   }, [])
-  const { where, projectPath, passage, parts, epic, resize, point, header, drawsHeader } = useHost(ID, { onGoto, onPress })
+  const { where, projectPath, projectId, passage, parts, epic, resize, point, header, drawsHeader } = useHost(ID, { onGoto, onPress })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
-  const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath)
+  const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath, projectId)
   refreshing.current = refresh
   /* Declared once the page has a tree to refresh, and taken away with the project. */
   const offered = where === 'hosted' && Boolean(projectPath)
@@ -356,9 +356,9 @@ export function App() {
   useLayoutEffect(() => {
     const element = scroller.current
     if (!element || !projectPath || scrolled.current === projectPath || !loaded.has('') || loading.size) return
-    element.scrollTop = viewOf(projectPath).top
+    element.scrollTop = viewOf(scopeOf(projectId, projectPath)!).top
     scrolled.current = projectPath
-  }, [projectPath, loaded, loading, rows])
+  }, [projectPath, projectId, loaded, loading, rows])
 
   /*
    * How tall this page would like its frame to be, asked for once per change in
@@ -430,7 +430,7 @@ export function App() {
         data-testid="scroller"
         className="min-h-0 min-w-0 flex-1 overflow-y-auto p-1 @sm/container:p-1.5"
         onScroll={(event) => {
-          if (projectPath && scrolled.current === projectPath) keepView(projectPath, { top: event.currentTarget.scrollTop })
+          if (projectPath && scrolled.current === projectPath) keepView(scopeOf(projectId, projectPath)!, { top: event.currentTarget.scrollTop })
         }}
       >
         <div style={{ height: virtual.getTotalSize(), position: 'relative', width: '100%' }}>

@@ -1,10 +1,10 @@
 import { configuredRoots, rootOf } from './tree/confine.ts'
 import { list, walk } from './tree/read.ts'
 import { MAX_DEPTH, MAX_PATH, count, str, type Entry } from './tree/shape.ts'
-import { doorContext } from 'kehikot-module-protocol'
+import { DOOR_PROJECT_SAYS, doorContext } from 'kehikot-module-protocol'
 import { establishBuild, mintTicket, refuseTicket } from 'kehikot-module-protocol/serve'
 
-import { hostAllows } from './host-ask.ts'
+import { resolveProject, type Resolve } from './host-ask.ts'
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 
 /**
@@ -76,26 +76,31 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
  */
 const NO_ROOT_PAGE =
   'Nothing has said which project is open, so there is no tree to show.'
-const NO_ROOT_AGENT =
-  'That did not say which project, or named one this app does not read. Send project as the absolute directory '
-  + 'of a project that is open in the host with the Explorer on its canvas: this app lists a project once its own '
-  + 'page has been opened on it (or one inside the directories its operator listed), and never a home folder or a '
-  + 'whole disk as such. This app will not guess: the only folder it could pick is its own, and a tree of the '
-  + 'explorer’s source is not an answer to a question about your project.'
+const NO_ROOT_AGENT = DOOR_PROJECT_SAYS.unnamed
+/* The host holds the folder and this app will not read it yet: the shared sentence, then what this app adds. */
+const NOT_READ_AGENT =
+  ' This app lists a project once its own page has been opened on it (or when it is inside the directories its '
+  + 'operator listed), and never a home folder or a whole disk as such. Send project as the absolute directory of a '
+  + 'project that is open in the host with the Explorer on its canvas.'
 const NOT_A_PROJECT_PAGE =
   'That folder is not shown as a project. This app lists a project folder — never a home folder or a whole disk as '
   + 'such — and, when its operator has listed directories, only what is inside them.'
 
 /**
- * Whether the host holds a folder as a project (protocol 1.4.0, `hostHasProject`). Asked in this
- * server before any folder a request names is read: a page's word is not the host's. A host that
- * says no, and no host answering at all, read nothing; a host from before 0.1.19, which answers
- * but has no such route, leaves the roots check alone to decide, as it did (`host-ask.ts`).
- * `setHostAsk` is for tests.
+ * Which project a folder is, as the host has it (protocol 2.3.0, `resolveDoorProject`). Asked in this
+ * server before any folder a request names is read: a page's word is not the host's. What is read is
+ * the path the host gives back, which is the new folder when the one named was a project's former
+ * path. A host that says no, and no host answering at all, read nothing. `setHostResolve` is for tests;
+ * `setHostAsk` is the boolean form of it.
  */
-let hostAsk: (folder: string) => Promise<boolean> = (folder) => hostAllows(folder)
+let hostResolve: Resolve = resolveProject
+export function setHostResolve(resolve: Resolve | null): void {
+  hostResolve = resolve ?? resolveProject
+}
 export function setHostAsk(ask: ((folder: string) => Promise<boolean>) | null): void {
-  hostAsk = ask ?? ((folder) => hostAllows(folder))
+  hostResolve = ask
+    ? async (folder) => ((await ask(folder)) ? { ok: true, path: folder } : { ok: false, reason: 'not-project', why: DOOR_PROJECT_SAYS.notProject(folder) })
+    : resolveProject
 }
 
 /* ------------------------------------------------------------------ *
@@ -237,9 +242,14 @@ async function call(name: string, args: Record<string, unknown>): Promise<string
 
   /* `project`, or `projectPath`, the name this door used before the protocol agreed one. */
   const named = str(doorContext(args).project, MAX_PATH)
-  const root = rootOf(named)
-  if (!root) throw new Error(NO_ROOT_AGENT)
-  if (!(await hostAsk(named!))) throw new Error(NO_ROOT_AGENT)
+  if (!named) throw new Error(NO_ROOT_AGENT)
+  const project = await hostResolve(named)
+  if (!project.ok) throw new Error(project.why)
+  /* The path the host gave back, never the one that was named: after a followed move they differ. */
+  const root = rootOf(project.path)
+  if (!root) throw new Error(DOOR_PROJECT_SAYS.notProject(project.path) + NOT_READ_AGENT)
+  const followed = project.movedFrom ? DOOR_PROJECT_SAYS.followed(project.movedFrom, project.path) : null
+  const said = (text: string): string => (followed ? `${text}\n\n${followed}` : text)
 
   const at = str(args.path, MAX_PATH)
   /*
@@ -257,12 +267,12 @@ async function call(name: string, args: Record<string, unknown>): Promise<string
     const one = list(root, at)
     if (!one.ok) throw new Error(one.error)
     const kept = one.entries.filter((entry) => withIgnored || !entry.ignored)
-    return treeText(kept, root, one.path, one.more > 0)
+    return said(treeText(kept, root, one.path, one.more > 0))
   }
 
   const walked = walk(root, at, asked, withIgnored)
   if ('error' in walked) throw new Error(walked.error)
-  return treeText(walked.entries, root, at, walked.cut)
+  return said(treeText(walked.entries, root, at, walked.cut))
 }
 
 interface Rpc {
@@ -377,9 +387,10 @@ export async function answer(
     if (stranger) return stranger
     const named = str(query.get('projectPath'), MAX_PATH)
     if (!named) return bad(NO_ROOT_PAGE)
-    const root = rootOf(named, 'page')
+    const project = await hostResolve(named)
+    if (!project.ok) return bad(project.reason === 'moved' ? project.why : NOT_A_PROJECT_PAGE)
+    const root = rootOf(project.path, 'page')
     if (!root) return bad(NOT_A_PROJECT_PAGE)
-    if (!(await hostAsk(named))) return bad(NOT_A_PROJECT_PAGE)
     const at = str(query.get('path'), MAX_PATH)
     const one = list(root, at)
     if (!one.ok) return bad(one.error, 404)
