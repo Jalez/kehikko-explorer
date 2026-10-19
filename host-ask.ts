@@ -1,47 +1,14 @@
-import { hostIsProjectUrls, isProjectResult } from 'kehikot-module-protocol/serve'
-import { LIMITS } from 'kehikot-module-protocol'
+import { resolveDoorProject, type DoorProject } from 'kehikot-module-protocol/serve'
 
 /**
- * Does the host hold this folder as a project? (protocol 1.4.0, `GET /host/is-project`)
+ * Which project is this folder? Asked of the host, in this server, before any folder a request names
+ * is read (protocol 2.3.0, `resolveDoorProject`). A page's word, or an agent's, is not the host's.
  *
- * `hostHasProject` in the protocol answers a bare boolean and fails closed, so a host from before
- * 0.1.19 — which has no such route and answers 404 — reads as "no" and this app would stop showing
- * every project there. Here a host that ANSWERS but does not know the route is "unknown", and then
- * the app does what it did before: its own roots check alone. Not answering at all (nothing
- * listening, a timeout) still reads nothing.
+ * The answer's `path` is what is read, never the folder that was asked about: an agent that learnt a
+ * path before the folder was renamed is followed to where the project is now, once, and only after the
+ * host has said the new path is the same project. A host that says no, a host that does not know the
+ * route, and no host answering at all read nothing.
  */
-export type HostSays = 'yes' | 'no' | 'unknown' | 'nobody'
+export type Resolve = (folder: string) => Promise<DoorProject>
 
-export async function hostSays(folder: string, options: { fetch?: typeof fetch; env?: Record<string, string | undefined>; timeoutMs?: number } = {}): Promise<HostSays> {
-  if (typeof folder !== 'string' || !folder.trim() || !folder.trim().startsWith('/')) return 'no'
-  const asked = options.fetch ?? fetch
-  let answered = false
-  let said: HostSays = 'nobody'
-  for (const url of hostIsProjectUrls(folder.trim(), options.env ?? process.env)) {
-    const control = new AbortController()
-    const timer = setTimeout(() => control.abort(), options.timeoutMs ?? LIMITS.HOST_ASK_MS)
-    try {
-      const response = await asked(url, { signal: control.signal })
-      answered = true
-      if (response.status === 403) { said = 'no'; continue }
-      if (!response.ok) continue
-      const read = isProjectResult.safeParse(await response.json().catch(() => null))
-      if (read.success) {
-        if (read.data.project) return 'yes'
-        said = 'no'
-      }
-    } catch {
-      /* Not listening here, or too slow: the next origin. */
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-  if (said === 'no') return 'no'
-  return answered ? 'unknown' : 'nobody'
-}
-
-/** Whether a folder may be read: the host holds it, or is a host that cannot say. */
-export async function hostAllows(folder: string, options?: Parameters<typeof hostSays>[1]): Promise<boolean> {
-  const word = await hostSays(folder, options)
-  return word === 'yes' || word === 'unknown'
-}
+export const resolveProject: Resolve = (folder) => resolveDoorProject(folder)

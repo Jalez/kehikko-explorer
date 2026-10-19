@@ -22,21 +22,21 @@ describe('the open folders and the scroll position, across a reload', () => {
   /** Held back until released, so a test can look at the page while a folder is still being read. */
   let slow: { path: string; release: () => void; waiting: Promise<void> } | null = null
 
-  const greet = async (projectPath: string) => {
+  const greet = async (projectPath: string, projectId?: string) => {
     await act(async () => {
-      window.postMessage({ type: 'kehikot.hello', protocol: 2, session: 's', state: null, context: { epic: null, theme: 'dark', project: 'p', projectPath } }, '*')
+      window.postMessage({ type: 'kehikot.hello', protocol: 2, session: 's', state: null, context: { epic: null, theme: 'dark', project: 'p', projectPath, ...(projectId ? { projectId } : {}) } }, '*')
       await new Promise((resolve) => setTimeout(resolve, 30))
     })
   }
-  const load = async (projectPath = '/tmp/p') => {
+  const load = async (projectPath = '/tmp/p', projectId?: string) => {
     render(<App />)
-    await greet(projectPath)
+    await greet(projectPath, projectId)
   }
-  const reload = async (projectPath = '/tmp/p') => {
+  const reload = async (projectPath = '/tmp/p', projectId?: string) => {
     cleanup()
     mailbox.forget?.()
     asked = []
-    await load(projectPath)
+    await load(projectPath, projectId)
   }
   const press = (name: string) =>
     act(async () => {
@@ -134,6 +134,25 @@ describe('the open folders and the scroll position, across a reload', () => {
     await reload('/tmp/p')
     expect(names()).toEqual(['src', 'src/view', 'src/app.tsx', 'docs', 'readme.md'])
     expect(viewOf('/tmp/q').open).toEqual(['docs'])
+  })
+
+  test('kept by the project’s id: the folder renamed under a reload still opens what was open', async () => {
+    const id = 'a1b2c3d4-0000-4000-8000-000000000001'
+    await load('/tmp/p', id)
+    await press('src')
+    await reload('/tmp/renamed', id)
+    expect(names()).toEqual(['src', 'src/view', 'src/app.tsx', 'docs', 'readme.md'])
+    expect(reads().sort()).toEqual(['', 'src'])
+  })
+
+  test('what an older page kept under the path is read once, then carried to the id', async () => {
+    const id = 'a1b2c3d4-0000-4000-8000-000000000001'
+    keepView('/tmp/p', { open: ['src'] })
+    await load('/tmp/p', id)
+    expect(names()).toEqual(['src', 'src/view', 'src/app.tsx', 'docs', 'readme.md'])
+    await press('docs')
+    expect(sessionStorage.getItem('kehikot.explorer.view:/tmp/p')).toBeNull()
+    expect(sessionStorage.getItem(`kehikot.explorer.view:${id}`)).not.toBeNull()
   })
 
   test('a scroll is written down as it happens', async () => {

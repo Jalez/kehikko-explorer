@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Entry } from '../tree/shape.ts'
 
 import { readDir } from '@/store/ask.ts'
-import { keepView, viewOf } from '@/store/view.ts'
+import { keepView, scopeOf, viewOf } from '@/store/view.ts'
 
 /**
  * What the page knows about the tree, and how it comes to know it.
@@ -89,7 +89,7 @@ export interface Tree {
   refresh: () => void
 }
 
-export function useTree(projectPath: string | null): Tree {
+export function useTree(projectPath: string | null, projectId: string | null = null): Tree {
   const [loaded, setLoaded] = useState<ReadonlyMap<string, readonly Entry[]>>(() => new Map())
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set())
@@ -115,10 +115,13 @@ export function useTree(projectPath: string | null): Tree {
 
   /* Every change to what is open goes through here, so it is written down as it happens: a reload
      of this page (the person's, Vite's, a stale page's) opens the same folders. `store/view.ts`. */
-  const hold = useCallback((root: string, next: ReadonlySet<string>) => {
+  const scope = scopeOf(projectId, projectPath)
+  const scopeRef = useRef(scope)
+  scopeRef.current = scope
+  const hold = useCallback((next: ReadonlySet<string>) => {
     openRef.current = next
     setOpen(next)
-    keepView(root, { open: [...next] })
+    if (scopeRef.current) keepView(scopeRef.current, { open: [...next] })
   }, [])
 
   const read = useCallback(
@@ -176,7 +179,7 @@ export function useTree(projectPath: string | null): Tree {
             /* Which is also all that happens to a folder that was open before a reload and is gone now. */
             const next = new Set(openRef.current)
             next.delete(path)
-            hold(root, next)
+            hold(next)
           }
         })
       }
@@ -198,7 +201,7 @@ export function useTree(projectPath: string | null): Tree {
    * was reloaded, read again beside the root.
    */
   useEffect(() => {
-    const reopened = projectPath ? viewOf(projectPath).open : []
+    const reopened = scopeRef.current ? viewOf(scopeRef.current).open : []
     flight.current?.abort()
     setLoaded(new Map())
     setOpen(new Set(reopened))
@@ -251,7 +254,7 @@ export function useTree(projectPath: string | null): Tree {
       const next = new Set(openRef.current)
       if (wasOpen) next.delete(path)
       else next.add(path)
-      hold(projectPath, next)
+      hold(next)
       if (wasOpen) return
       /*
        * Opened first, read second, and re-read even when the children are
