@@ -1,6 +1,6 @@
 {
   "name": "kehikko-explorer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "The working tree of the project that is open, read one directory at a time. Pressing a file points the canvas at it. An app: its own page, its own port, and no way to write a byte.",
