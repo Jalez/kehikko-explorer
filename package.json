@@ -1,6 +1,6 @@
 {
   "name": "kehikko-explorer",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "description": "The working tree of the project that is open, read one directory at a time. Pressing a file points the canvas at it. An app: its own page, its own port, and no way to write a byte.",
@@ -20,7 +20,7 @@
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.17.0",
+    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.29.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^3.23.8"
   },
