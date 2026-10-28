@@ -340,9 +340,9 @@ describe('the manifest this app serves', () => {
     expect(MANIFEST.extensions.emits).toEqual([])
   })
 
-  test('its one mode is epic-scoped, because that is where projectPath arrives', async () => {
+  test('its one mode is at project (protocol 2.29.0): the files, whatever epic is open', async () => {
     expect(MANIFEST.modes).toHaveLength(1)
-    expect(MANIFEST.modes[0]!.scope).toBe('epic')
+    expect(MANIFEST.modes[0]!.scope).toBe('project')
   })
 
   test('the guidance tells an agent what this module cannot do', async () => {

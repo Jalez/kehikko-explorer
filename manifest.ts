@@ -91,14 +91,13 @@ export const PREFERRED_PORT = 7970
  * this app gives is entirely determined by what is on disk under the project
  * the host named, and a paragraph cannot change what `readdir` returns.
  *
- * ## The mode is epic-scoped, because `projectPath` only arrives there
+ * ## The mode, at `project`
  *
- * One mode, which becomes an ordinary tab in the mode row. `scope: 'epic'`
- * because an epic-scoped mode is the one that receives `kehikot.context` — and
- * the context is where `projectPath` lives. A `global` mode is never sent one,
- * which for this app means a container that can never learn which directory it
- * is the explorer OF. The same context carries `passage`, which is how a row
- * knows to mark itself as where the canvas is pointed.
+ * One mode, at `project` (protocol 2.29.0): the tree is the project's folder,
+ * whatever epic is open. A host sends `kehikot.context` to every container
+ * whatever its scope, and the context is where `projectPath` lives; it also
+ * carries `passage`, which is how a row knows to mark itself as where the
+ * canvas is pointed.
  *
  * ## Storage, and why a module that holds nothing still asks for it
  *
@@ -174,7 +173,10 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     + 'Use your own tools for contents and for edits. When a person presses a file here, the canvas is pointed '
     + 'at that file with no byte range, which is how the other containers on it follow along.',
   entry: '/app',
-  modes: [{ id: 'explorer', label: 'Explorer', scope: 'epic' }],
+  /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
+  modes: [
+    { id: 'explorer', label: 'Explorer', scope: 'project', scopeSays: 'the files of this project, whatever epic is open' },
+  ],
   mcp: {
     url: '/mcp',
     transport: 'http',
