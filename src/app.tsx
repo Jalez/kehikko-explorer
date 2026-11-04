@@ -11,6 +11,7 @@ import { absoluteOf, rootOf } from '../tree/paths.ts'
 import type { Copied } from '@/lib/copy.ts'
 import { fallbackShows, HeaderFallback, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { NOUN, anchorOf, heldBy, inHand } from '@/focus.ts'
+import { footerItems } from '@/footer.ts'
 import { keepView, scopeOf, viewOf } from '@/store/view.ts'
 import { RowMenu, type MenuAt } from '@/view/menu.tsx'
 import { ROW_HEIGHT, TreeRow, type RowActions } from '@/view/row.tsx'
@@ -139,7 +140,7 @@ export function App() {
     refreshing.current()
     return true
   }, [])
-  const { where, projectPath, projectId, passage, parts, epic, resize, point, header, drawsHeader } = useHost(ID, { onGoto, onPress })
+  const { where, projectPath, projectId, passage, parts, epic, resize, point, header, drawsHeader, footer, drawsFooter } = useHost(ID, { onGoto, onPress })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath, projectId)
@@ -396,6 +397,20 @@ export function App() {
    * showing a directory nobody on the canvas is working in. A tree of the wrong project is worse
    * than no tree, because it looks right.
    */
+  /*
+   * The footer the host draws, when it draws one (2.38.0): the pointed file, how much the tree shows,
+   * and a copy that failed. The page then draws neither strip under the tree. An older host draws no
+   * footer, and the page keeps both.
+   */
+  const footed = offered && drawsFooter === true
+  const footerSaid =
+    where === 'hosted' && drawsFooter === true
+      ? JSON.stringify(!offered || trouble || !loaded.has('') ? [] : footerItems({ pointed: pointedAt, shown: rows.length, truncated, notice }))
+      : null
+  useEffect(() => {
+    if (footerSaid) footer(JSON.parse(footerSaid))
+  }, [footer, footerSaid])
+
   const cover: CoverState | null = coverFor({ where, projectPath, server })
   if (cover && cover !== 'down') return <Cover state={cover} name="Explorer" />
 
@@ -489,7 +504,7 @@ export function App() {
        * signal at all: the visible failure of a copy is that a paste later
        * produces the wrong thing, which is far too late to be told.
        */}
-      {notice ? (
+      {notice && !footed ? (
         <p
           data-testid="notice"
           role="status"
@@ -499,7 +514,7 @@ export function App() {
         </p>
       ) : null}
 
-      {truncated ? (
+      {truncated && !footed ? (
         <p data-testid="truncated" className="min-w-0 shrink-0 border-t px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
           {truncated.toLocaleString()} more here than this shows.
         </p>
