@@ -293,6 +293,30 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(asked).toHaveLength(0)
   })
 
+  test('a host that draws the footer is told the pointed file and the count', async () => {
+    const footers: unknown[][] = []
+    const hear = (event: MessageEvent) => {
+      if ((event.data as { type?: string })?.type === 'kehikot.footer') footers.push((event.data as { items: unknown[] }).items)
+    }
+    window.addEventListener('message', hear)
+    try {
+      render(<App />)
+      await act(async () => {
+        window.postMessage(
+          { type: 'kehikot.hello', protocol: 2, session: 's', state: null, footer: true, context: { epic: null, theme: 'dark', project: 'p', projectPath: '/tmp/p', passage: { path: '/tmp/p/readme.md', page: null, from: null, to: null, quoted: '', section: null } } },
+          '*',
+        )
+        await new Promise((resolve) => setTimeout(resolve, 60))
+      })
+      expect(footers.at(-1)).toEqual([
+        expect.objectContaining({ kind: 'text', id: 'pointed', text: 'readme.md' }),
+        expect.objectContaining({ kind: 'text', id: 'count', text: '1 entry' }),
+      ])
+    } finally {
+      window.removeEventListener('message', hear)
+    }
+  })
+
   test('greeted with a project, the cover is gone and the root is read once, by a relative path', async () => {
     render(<App />)
     await greet({ project: 'p', projectPath: '/tmp/p', theme: 'light' })
