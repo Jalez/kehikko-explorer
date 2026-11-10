@@ -1,0 +1,33 @@
+[
+  {
+    "name": "a tree",
+    "header": [
+      {
+        "kind": "run",
+        "id": "refresh",
+        "label": "Refresh the tree",
+        "icon": "refresh-cw",
+        "agents": true
+      }
+    ],
+    "footer": [
+      {
+        "kind": "text",
+        "id": "pointed",
+        "text": "src/app.tsx",
+        "level": "normal",
+        "align": "start",
+        "optional": false,
+        "tooltip": "The canvas points at src/app.tsx"
+      },
+      {
+        "kind": "text",
+        "id": "count",
+        "text": "120 entries",
+        "level": "normal",
+        "align": "end",
+        "optional": true
+      }
+    ]
+  }
+]
