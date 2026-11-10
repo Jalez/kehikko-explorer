@@ -140,7 +140,7 @@ export function App() {
     refreshing.current()
     return true
   }, [])
-  const { where, projectPath, projectId, passage, parts, epic, resize, point, header, drawsHeader, footer, drawsFooter } = useHost(ID, { onGoto, onPress })
+  const { where, projectPath, projectId, passage, parts, epic, resize, point, header, drawsHeader, footer, drawsFooter, ready } = useHost(ID, { onGoto, onPress })
   /* How this page's own server last answered: `down` when nothing did, `stale` when it restarted under this page. */
   const server = useServerStanding()
   const { loaded, open, loading, trouble, cut, toggle, refresh } = useTree(projectPath, projectId)
@@ -412,6 +412,12 @@ export function App() {
   }, [footer, footerSaid])
 
   const cover: CoverState | null = coverFor({ where, projectPath, server })
+  /* The host's cover is held until the page is drawn (protocol 2.70.0): once the root has been read, or the
+     read failed, or a cover says why there is nothing to read. */
+  const treeDrawn = cover !== null ? cover !== 'waiting' : Boolean(trouble) || loaded.has('')
+  useEffect(() => {
+    if (treeDrawn) ready()
+  }, [treeDrawn, ready])
   if (cover && cover !== 'down') return <Cover state={cover} name="Explorer" />
 
   const readRoot = loaded.get('')
@@ -442,6 +448,7 @@ export function App() {
        */}
       <div
         ref={scroller}
+        data-kehikot-scroll
         data-testid="scroller"
         className="min-h-0 min-w-0 flex-1 overflow-y-auto p-1 @sm/container:p-1.5"
         onScroll={(event) => {

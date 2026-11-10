@@ -324,8 +324,8 @@ describe('/mcp', () => {
 })
 
 describe('the manifest this app serves', () => {
-  test('declares passage:set and nothing else', async () => {
-    expect(MANIFEST.declares.uses).toEqual(['passage:set'])
+  test('declares passage:set, and state:keep for the kept view, and nothing else', async () => {
+    expect(MANIFEST.declares.uses).toEqual(['passage:set', 'state:keep'])
   })
 
   /* The whole argument is in `manifest.ts`; this is the line that fails if

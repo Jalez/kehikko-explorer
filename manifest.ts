@@ -77,11 +77,13 @@ export const PREFERRED_PORT = 7970
  * - **`events:emit` — no, and `emits` is empty.** Nothing here happens that
  *   somebody would otherwise miss; a person pressing a folder open already
  *   knows they did.
- * - **`state:keep` — no.** Which folders are open is worth remembering for
- *   about as long as the page is on screen, and no longer: a tree restored with
- *   yesterday's expansions into today's checkout is a container confidently
- *   showing directories that have since been deleted. It is cheap to open a
- *   folder again and expensive to explain a ghost.
+ * - **`state:keep` — yes, for the kept view only (protocol 2.70.0).** The host
+ *   keeps where the tree was scrolled to, so a container opens where it was
+ *   left (the tree's scroller is marked `data-kehikot-scroll`). Which folders
+ *   are open is still not kept: a tree restored with yesterday's expansions
+ *   into today's checkout is a container confidently showing directories that
+ *   have since been deleted. It is cheap to open a folder again and expensive
+ *   to explain a ghost.
  *
  * ## `prompt: false`
  *
@@ -214,7 +216,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   reacts: ['passage', 'parts'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: ['passage:set'],
+    uses: ['passage:set', 'state:keep'],
     storage: true,
     prompt: false,
   },
