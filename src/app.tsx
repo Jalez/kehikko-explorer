@@ -556,7 +556,7 @@ export function App() {
       {cover === 'down' ? <Cover state="down" name="Explorer" onRetry={refresh} /> : null}
       {/* Kept mounted under the cover, so the folders somebody opened and where they had scrolled
           to are still there when the server answers again. */}
-      <div hidden={cover === 'down'} className="h-full min-w-0">
+      <div data-kehikot-page hidden={cover === 'down'} className="h-full min-w-0">
         {screen}
       </div>
     </>
