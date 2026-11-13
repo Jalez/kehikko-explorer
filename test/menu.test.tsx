@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
+import { FILE_DRAG_TYPE, fileDrag } from 'kehikot-module-protocol'
+
 import type { Entry } from '../tree/shape.ts'
 
 import { RowMenu } from '../src/view/menu.tsx'
@@ -279,5 +281,49 @@ describe('opening the menu from a row', () => {
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
     screen.getByTestId('row').dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
+  })
+})
+
+/* Dragging a row carries the file out in the protocol's drag format (2.94.0), so another module that
+   opens files can take it without either naming the other. */
+const entryOf = (path: string, kind: 'file' | 'dir' = 'file'): Entry => ({ path, name: path.split('/').pop()!, kind, ignored: false, link: false })
+/** A DataTransfer as a browser hands one to `dragstart`. */
+function transfer() {
+  const data = new Map<string, string>()
+  return {
+    data,
+    effectAllowed: 'all',
+    setData: (type: string, value: string) => void data.set(type, value),
+    getData: (type: string) => data.get(type) ?? '',
+    get types() {
+      return [...data.keys()]
+    },
+  }
+}
+
+const dragActions = (project: string | null): RowActions => ({ toggle: () => {}, point: () => {}, project })
+
+describe('dragging a row', () => {
+  test('a file row carries { project, path } in the drag format, a uri-list and the path as text', () => {
+    render(<TreeRow row={row(entryOf('src/app.tsx'))} pointed={false} actions={dragActions(ROOT)} />)
+    const line = screen.getByTestId('line')
+    expect(line.getAttribute('draggable')).toBe('true')
+    const dt = transfer()
+    fireEvent.dragStart(line, { dataTransfer: dt })
+    expect(JSON.parse(dt.data.get(FILE_DRAG_TYPE)!)).toEqual({ project: ROOT, path: 'src/app.tsx', kind: 'file' })
+    expect(dt.data.get('text/plain')).toBe(`${ROOT}/src/app.tsx`)
+    expect(fileDrag.read(dt)).toEqual({ project: ROOT, path: 'src/app.tsx', kind: 'file' })
+  })
+
+  test('a folder row says it is a folder', () => {
+    render(<TreeRow row={row(entryOf('docs', 'dir'))} pointed={false} actions={dragActions(ROOT)} />)
+    const dt = transfer()
+    fireEvent.dragStart(screen.getByTestId('line'), { dataTransfer: dt })
+    expect(fileDrag.read(dt)?.kind).toBe('folder')
+  })
+
+  test('with no project nothing drags', () => {
+    render(<TreeRow row={row(entryOf('a.ts'))} pointed={false} actions={dragActions(null)} />)
+    expect(screen.getByTestId('line').getAttribute('draggable')).toBe('false')
   })
 })

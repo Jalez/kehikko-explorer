@@ -1,5 +1,7 @@
 import { ChevronRight } from 'lucide-react'
-import { type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, useRef } from 'react'
+import { type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, useRef } from 'react'
+
+import { fileDrag } from 'kehikot-module-protocol'
 
 import type { Row } from '../../tree/flatten.ts'
 
@@ -62,6 +64,12 @@ export interface RowActions {
    * Optional so that a test rendering a bare row does not have to supply one.
    */
   menu?: (path: string, x: number, y: number, from: HTMLElement | null) => void
+  /**
+   * The project's folder, which makes a row draggable: a drag carries `{ project, path }` in the
+   * protocol's drag format (`fileDrag.set`), so another module that opens files can take it. Null or
+   * absent: rows do not drag.
+   */
+  project?: string | null
 }
 
 export function TreeRow({
@@ -164,11 +172,24 @@ export function TreeRow({
    */
   const indent = Math.min(depth, 10) * 10
 
+  /* A file or a folder carried out in the protocol's drag format; the host hands it on across frames. */
+  const project = actions.project ?? null
+  const onDragStart = (event: ReactDragEvent) => {
+    if (!project || !fileDrag.set(event.dataTransfer, { project, path: entry.path, kind: isDir ? 'folder' : 'file' })) {
+      event.preventDefault()
+      return
+    }
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+
   return (
     <div
       ref={line}
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
+      draggable={project !== null}
+      onDragStart={project !== null ? onDragStart : undefined}
+      data-testid="line"
       className={cn(
         'flex w-full min-w-0 select-none items-center rounded-sm pr-1 text-left text-xs',
         'hover:bg-accent hover:text-accent-foreground',

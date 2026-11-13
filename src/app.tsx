@@ -263,6 +263,12 @@ export function App() {
        * framing this page, and the clipboard is not the host's to grant.
        */
       menu: (path, x, y, from) => setMenu({ path, x, y, from }),
+      /*
+       * Dragging a row carries the file (or folder) out to whatever takes it: the protocol's one
+       * format for "a file in a project", so this module never needs to know who that is. Offered
+       * whenever there is a project, framed or not — a path dropped in a terminal is a path.
+       */
+      project: projectPath ? rootOf(projectPath) : null,
     }),
     [toggle, point, where, projectPath],
   )
