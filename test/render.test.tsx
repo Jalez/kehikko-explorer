@@ -321,7 +321,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
     render(<App />)
     await greet({ project: 'p', projectPath: '/tmp/p', theme: 'light' })
     expect(cover()).toBeNull()
-    expect(asked.some((url) => url.startsWith('./api/tree?projectPath=%2Ftmp%2Fp'))).toBe(true)
+    expect(asked.some((url) => url.startsWith('/api/tree?projectPath=%2Ftmp%2Fp'))).toBe(true)
     expect(document.documentElement.classList.contains('light')).toBe(true)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
@@ -425,7 +425,7 @@ describe('the not-ready moments, each as the one shared cover', () => {
     down = false
     refuse = 'No.'
     expect(await readDir('/tmp/p', 'src', new AbortController().signal)).toEqual({ ok: false, error: 'No.' })
-    expect(asked.at(-1)).toBe('./api/tree?projectPath=%2Ftmp%2Fp&path=src')
+    expect(asked.at(-1)).toBe('/api/tree?projectPath=%2Ftmp%2Fp&path=src')
     /* Superseded reads happen constantly; one that drew a sentence would be a container nobody believes. */
     const gone = new AbortController()
     gone.abort()
